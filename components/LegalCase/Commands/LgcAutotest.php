@@ -13,7 +13,12 @@ use Components\LegalCase\Libraries\MessageService;
 use Components\LegalCase\Libraries\Outbox;
 use Components\LegalCase\Libraries\Portal;
 use Components\LegalCase\Libraries\Team;
+use Components\LegalCase\Libraries\DocumentService;
 use Components\LegalCase\Libraries\UpdateService;
+use Components\LegalCase\Libraries\ConflictService;
+use Components\LegalCase\Libraries\Support;
+use Components\LegalCase\Models\ConflictCheckModel;
+use Components\LegalCase\Models\MessageModel;
 use Components\LegalCase\Models\AuditModel;
 use Components\LegalCase\Models\ContactModel;
 use Components\LegalCase\Models\DeadlineModel;
@@ -122,6 +127,26 @@ class LgcAutotest extends BaseCommand
         return $this->users[] = (int) $db->insertID();
     }
 
+    /** Rol de prueba con los permisos indicados; se borra al terminar. */
+    private array $roles = [];
+
+    private function role(string $tag, array $perms): int
+    {
+        $db = db_connect();
+        $db->table('roles')->insert(['name' => 'ZZTEST ' . $tag . ' ' . bin2hex(random_bytes(3)), 'description' => 'autotest', 'created_at' => date('Y-m-d H:i:s')]);
+        $rid = (int) $db->insertID();
+        foreach ($db->table('permissions')->whereIn('name', $perms)->get()->getResultArray() as $p) {
+            $db->table('role_permissions')->insert(['role_id' => $rid, 'permission_id' => (int) $p['id']]);
+        }
+
+        return $this->roles[] = $rid;
+    }
+
+    private function assign(int $userId, int $roleId): void
+    {
+        db_connect()->table('user_roles')->insert(['user_id' => $userId, 'role_id' => $roleId]);
+    }
+
     private function company(string $name, int $ownerId, array $members): int
     {
         $db = db_connect();
@@ -148,7 +173,12 @@ class LgcAutotest extends BaseCommand
             }
         }
         foreach ($this->users as $uid) {
+            $db->table('user_roles')->where('user_id', $uid)->delete();
             $db->table('users')->where('id', $uid)->delete();
+        }
+        foreach ($this->roles as $rid) {
+            $db->table('role_permissions')->where('role_id', $rid)->delete();
+            $db->table('roles')->where('id', $rid)->delete();
         }
         $left = $this->companies ? $db->table('cmp_lgc_matters')->whereIn('company_id', $this->companies)->countAllResults() : 0;
         CLI::write('  Limpieza: ' . ($left === 0 ? 'sin residuos' : "QUEDAN {$left} asuntos"), $left === 0 ? 'dark_gray' : 'red');
@@ -162,7 +192,22 @@ class LgcAutotest extends BaseCommand
         $lawyer2  = $this->user('lawyer2');
         $outsider = $this->user('outsider');
         $cidA     = $this->company('Despacho A', $owner, [$lawyer2]);
+        $para     = $this->user('paralegal');
+        $auditor  = $this->user('auditor');
+        $platform = $this->user('platform');
         $cidB     = $this->company('Despacho B', $outsider, []);
+        $lawyerRole = $this->role('abogado', ['lgc.view', 'lgc.create', 'lgc.edit', 'lgc.approve', 'lgc.share', 'lgc.delete', 'lgc.configure']);
+        $paraRole   = $this->role('paralegal', ['lgc.view', 'lgc.create', 'lgc.edit']);
+        $audRole    = $this->role('auditor', ['lgc.view']);
+        foreach ([$owner, $lawyer2, $outsider] as $u) {
+            $this->assign($u, $lawyerRole);
+        }
+        $this->assign($para, $paraRole);
+        $this->assign($auditor, $audRole);
+        $this->assign($platform, $lawyerRole);
+        foreach ([$para, $auditor] as $u) {
+            db_connect()->table('company_users')->insert(['company_id' => $cidA, 'user_id' => $u, 'is_admin' => 0, 'created_at' => date('Y-m-d H:i:s')]);
+        }
         Team::flush();
 
         $outbox  = new Outbox($this->sender());
@@ -367,8 +412,162 @@ class LgcAutotest extends BaseCommand
         }
         $this->check('la bitácora es de solo inserción', $threw);
         $this->check('cerrar exige un motivo válido', !$matters->close($m1, 'inventado', $accOwn)->ok);
-        $matters->close($m1, 'completed', $accOwn);
+        $cl = $matters->close($m1, 'completed', $accOwn);
+        $this->check('cerrar con pendientes exige confirmarlos', !$cl->ok && !empty($cl->data['pending']['deadlines']));
+        $matters->close($m1, 'completed', $accOwn, true);
+        $this->check('al cerrar se cancelan tareas y se cierran hilos (los plazos siguen)', (new TaskModel())->where('matter_id', $r1->id)->where('status', 'open')->countAllResults() === 0
+            && (new ThreadModel())->where('matter_id', $r1->id)->whereIn('status', ThreadModel::OPEN)->countAllResults() === 0
+            && (new DeadlineModel())->where('matter_id', $r1->id)->where('status', 'validated')->countAllResults() === 1);
         $this->check('cerrar desactiva el plan de comunicación', (int) db_connect()->table('cmp_lgc_comm_plans')->where('matter_id', $r1->id)->get()->getRowArray()['is_active'] === 0);
         $this->check('un asunto cerrado no recibe borradores normales', !$upd->createDraft((new MatterModel())->find($r1->id), 'regular', ['what_happened' => 'x'], $accOwn)->ok);
+
+        $this->legalControls($cidA, $cidB, $owner, $lawyer2, $para, $auditor, $platform, $outbox);
+    }
+
+    // ------------------------------------------------------------------ 1.1 controles jurídicos
+
+    private function legalControls(int $cidA, int $cidB, int $owner, int $lawyer2, int $para, int $auditor, int $platform, Outbox $outbox): void
+    {
+        $accOwn  = new Access($cidA, $owner);
+        $accPara = new Access($cidA, $para);
+        $accAud  = new Access($cidA, $auditor);
+        $matters = new MatterService();
+        $contacts = new ContactModel();
+        $mk = function (string $name, string $email = '', string $doc = '') use ($contacts, $cidA): int {
+            $contacts->insert(['company_id' => $cidA, 'kind' => 'person', 'name' => $name, 'email' => $email, 'doc_number' => $doc, 'locale' => 'es']);
+
+            return (int) $contacts->getInsertID();
+        };
+
+        // ── 9. Conflicto de interés ──────────────────────────────────────────
+        $this->title('9. Conflicto de interés');
+        $cliente = $mk('ZZTEST Lucía Pérez', 'zz.lucia@example.invalid', '111');
+        $empresa = $mk('ZZTEST Industrias Ñandú S.A.S.', 'zz.nandu@example.invalid', '900');
+        $a = $matters->create(['title' => 'ZZTEST demanda', 'client_contact_id' => $cliente, 'lead_lawyer_id' => $owner], $accOwn);
+        $ma = (new MatterModel())->find($a->id);
+        $matters->addParticipant($ma, $empresa, 'counterparty', $accOwn);
+        $gemela = $mk('zztest industrias ÑANDU sas', '', '');
+        $b = $matters->create(['title' => 'ZZTEST asesoría a la contraparte', 'client_contact_id' => $gemela, 'lead_lawyer_id' => $owner], $accOwn);
+        $this->check('abrir un asunto para quien es contraparte en otro se detiene', !$b->ok && !empty($b->data['conflicts']), $b->message);
+        $this->check('detecta la coincidencia por nombre normalizado (tildes, mayúsculas, S.A.S.)', ($b->data['conflicts'][0]['match'] ?? '') === 'same_name');
+        $c = $matters->create(['title' => 'ZZTEST asesoría a la contraparte', 'client_contact_id' => $gemela, 'lead_lawyer_id' => $owner,
+            'conflict_ack' => 1, 'conflict_note' => 'Persona distinta, verificado con el certificado de existencia.'], $accOwn);
+        $this->check('con revisión y justificación se puede continuar', $c->ok);
+        $chk = (new ConflictCheckModel())->where('company_id', $cidA)->where('matter_id', $c->id)->where('decision', 'proceed')->first();
+        $this->check('la decisión queda como evidencia asociada al asunto', $chk !== null && str_contains((string) $chk['justification'], 'certificado'));
+        $doc = $mk('ZZTEST Otro Nombre', '', '111');
+        $this->check('detecta la misma persona por número de documento', ((new ConflictService())->check($cidA, $doc, 'counterparty', null)[0]['match'] ?? '') === 'same_document');
+        $this->check('un contacto no puede estar en los dos lados del mismo asunto', !$matters->addParticipant($ma, $cliente, 'counterparty', $accOwn)->ok);
+
+        // ── 10. Acceso: equipo, privilegio, soporte de plataforma ─────────────
+        $this->title('10. Acceso por equipo, privilegio y soporte');
+        $this->check('el auditor (miembro, fuera del equipo) ve el asunto', $accAud->canSeeMatter($ma));
+        $this->check('pero no lo privilegiado ni puede actuar', !$accAud->isInsider($ma) && !$accAud->canWorkOn($ma));
+        $this->check('quien lo abre sin ser responsable queda en el equipo', (new Access($cidA, $para))->canWorkOn((new MatterModel())->find(
+            $matters->create(['title' => 'ZZTEST abierto por paralegal', 'lead_lawyer_id' => $owner], $accPara)->id)));
+        $matters->addTeam($ma, $auditor, 'observer', $accOwn);
+        $accObs = new Access($cidA, $auditor);
+        $this->check('el «observador» del equipo ve lo privilegiado pero no actúa', $accObs->isInsider($ma) && !$accObs->canWorkOn($ma));
+        $accPlat = new Access($cidA, $platform);
+        $this->check('la plataforma (no miembro) NO accede sin autorización', !$accPlat->hasCompanyAccess() && !$accPlat->canSeeMatter($ma));
+        $g = (new Support())->grant('zztest_platform@example.invalid', 2, 'Revisión de una incidencia reportada', $accOwn);
+        $this->check('el despacho concede acceso de soporte temporal', $g->ok, $g->message);
+        $accPlat = new Access($cidA, $platform);
+        $this->check('con soporte: ve, pero no actúa ni ve lo privilegiado', $accPlat->canSeeMatter($ma) && !$accPlat->canWorkOn($ma) && !$accPlat->isInsider($ma));
+        $grant = db_connect()->table('cmp_lgc_support_grants')->where('company_id', $cidA)->where('user_id', $platform)->get()->getRowArray();
+        (new Support())->revoke((int) $grant['id'], $accOwn);
+        $this->check('revocado el soporte, deja de ver', !(new Access($cidA, $platform))->canSeeMatter($ma));
+        $this->check('no se concede soporte a un miembro del despacho', !(new Support())->grant('zztest_auditor@example.invalid', 2, 'Motivo suficientemente largo', $accOwn)->ok);
+
+        // ── 11. Portal: coclientes, poder y privacidad ────────────────────────
+        $this->title('11. Coclientes, poderes y privacidad');
+        $portal = new Portal();
+        $co   = $mk('ZZTEST Mario Cocliente', 'zz.mario@example.invalid', '222');
+        $rep  = $mk('ZZTEST Rosa Apoderada', 'zz.rosa@example.invalid', '333');
+        $matters->addParticipant($ma, $co, 'client', $accOwn);
+        $matters->addParticipant($ma, $rep, 'representative', $accOwn);
+        $parts = [];
+        foreach ((new ParticipantModel())->where('matter_id', $a->id)->findAll() as $p) {
+            $parts[(int) $p['contact_id']] = $p;
+        }
+        $g1 = $portal->grant($ma, $parts[$cliente], $accOwn, $this->sender());
+        $g2 = $portal->grant($ma, $parts[$co], $accOwn, $this->sender());
+        $acc1 = (new PortalAccountModel())->find((int) $g1->id);
+        $acc2 = (new PortalAccountModel())->find((int) $g2->id);
+        $this->check('el representante sin poder acreditado no recibe acceso', !$portal->grant($ma, $parts[$rep], $accOwn, $this->sender())->ok);
+        $docs = new DocumentModel();
+        $docs->insert(['company_id' => $cidA, 'matter_id' => $a->id, 'name' => 'poder.pdf', 'path' => 'p.bin', 'mime' => 'application/pdf', 'sha256' => str_repeat('9', 64), 'classification' => 'internal']);
+        $matters->setAuthority($ma, (int) $parts[$rep]['id'], ['authority_document_id' => (int) $docs->getInsertID(), 'authority_until' => date('Y-m-d', strtotime('+30 days'))], $accOwn);
+        $g3 = $portal->grant($ma, (new ParticipantModel())->find((int) $parts[$rep]['id']), $accOwn, $this->sender());
+        $this->check('con poder vigente sí recibe acceso', $g3->ok, $g3->message);
+        $acc3 = (new PortalAccountModel())->find((int) $g3->id);
+        $view = new ClientView();
+        $this->check('con el poder vencido deja de ver el asunto', (function () use ($view, $acc3, $a, $parts, $rep) {
+            db_connect()->table('cmp_lgc_participants')->where('id', (int) $parts[$rep]['id'])->update(['authority_until' => date('Y-m-d', strtotime('-1 day'))]);
+
+            return $view->matter($acc3, $a->id) === null;
+        })());
+
+        $this->check('el portal exige aceptar el aviso de privacidad', $portal->needsPrivacy($acc1));
+        $portal->acceptPrivacy($acc1);
+        $acc1 = (new PortalAccountModel())->find((int) $acc1['id']);
+        $ct   = (new ContactModel())->find($cliente);
+        $this->check('al aceptar queda la autorización en la cuenta y en el contacto', !$portal->needsPrivacy($acc1) && $ct['consent_status'] === 'granted' && $ct['consent_method'] === 'portal');
+        (new SettingsModel())->where('company_id', $cidA)->set(['privacy_version' => '2'])->update();
+        $this->check('una versión nueva del aviso exige aceptarlo otra vez', $portal->needsPrivacy($acc1));
+
+        $msg = new MessageService($outbox);
+        $mpub = $view->matter($acc1, $a->id);
+        $t1 = $msg->clientWrites($acc1, $mpub, null, 'Privado', 'SECRETO-DE-LUCIA');
+        $det2 = $view->detail($acc2, $view->matter($acc2, $a->id));
+        $this->check('el cocliente NO lee el hilo del otro cliente', !str_contains(json_encode($det2['threads']), 'SECRETO-DE-LUCIA'));
+        $this->check('el cocliente no puede responder en ese hilo', $view->thread($acc2, $a->id, (int) $t1->id) === null);
+        $sh = $msg->staffStarts($ma, 'Para ambos', 'MENSAJE-COMPARTIDO', $accOwn, 'shared');
+        $this->check('un hilo compartido por el despacho lo ven ambos', $sh->ok
+            && str_contains(json_encode($view->detail($acc2, $view->matter($acc2, $a->id))['threads']), 'MENSAJE-COMPARTIDO')
+            && str_contains(json_encode($view->detail($acc1, $view->matter($acc1, $a->id))['threads']), 'MENSAJE-COMPARTIDO'));
+        $rq = $msg->requestDocument($ma, ['title' => 'Cédula de Lucía', 'account_id' => (int) $acc1['id']], $accOwn);
+        $this->check('una solicitud dirigida a un cliente no la ve ni la entrega el otro', $view->request($acc2, (int) $rq->id) === null && $view->request($acc1, (int) $rq->id) !== null);
+
+        // ── 12. Supervisión del personal no abogado ───────────────────────────
+        $this->title('12. Supervisión del personal no abogado');
+        $matters->addTeam($ma, $para, 'assistant', $accOwn);
+        $thr = (new ThreadModel())->find((int) $t1->id);
+        $r = $msg->staffReplies($ma, $thr, 'BORRADOR-DEL-PARALEGAL', 'answered', $accPara);
+        $this->check('la respuesta del paralegal queda en revisión', $r->ok && (new ThreadModel())->find((int) $t1->id)['status'] === 'review');
+        $this->check('el cliente no ve el borrador', !str_contains(json_encode($view->detail($acc1, $view->matter($acc1, $a->id))['threads']), 'BORRADOR-DEL-PARALEGAL'));
+        $pm = (new MessageModel())->where('thread_id', (int) $t1->id)->where('status', 'pending_review')->first();
+        $this->check('el autor no aprueba su propio mensaje', !$msg->review($ma, $pm, true, $accPara)->ok);
+        $this->check('un abogado lo aprueba y entonces llega al cliente', $msg->review($ma, $pm, true, $accOwn)->ok
+            && str_contains(json_encode($view->detail($acc1, $view->matter($acc1, $a->id))['threads']), 'BORRADOR-DEL-PARALEGAL'));
+        $docs->insert(['company_id' => $cidA, 'matter_id' => $a->id, 'name' => 'memo.pdf', 'path' => 'm.bin', 'mime' => 'application/pdf', 'sha256' => str_repeat('8', 64), 'classification' => 'privileged']);
+        $memo = (new DocumentModel())->find((int) $docs->getInsertID());
+        $this->check('el paralegal no comparte documentos con el cliente', !(new DocumentService())->classify($memo, 'shared', $accPara)->ok);
+        $this->check('compartir un privilegiado exige confirmación expresa', !(new DocumentService())->classify($memo, 'shared', $accOwn)->ok
+            && (new DocumentService())->classify($memo, 'shared', $accOwn, true)->ok);
+        $dr = $msg->dataRightsRequest($acc1, $mpub, 'supresion', 'Quiero que eliminen mis datos.');
+        $drt = (new ThreadModel())->find((int) $dr->id);
+        $this->check('la solicitud de datos personales se registra con plazo legal (≥ 15 días hábiles)', $drt['kind'] === 'data_rights'
+            && strtotime((string) $drt['first_response_due_at']) >= strtotime('+18 days'));
+
+        // ── 13. Alertas, retención, reasignación ─────────────────────────────
+        $this->title('13. Alertas, conservación y reasignación');
+        (new DeadlineService())->createDeadline($ma, ['title' => 'Vence mañana', 'due_at' => date('Y-m-d H:i', strtotime('+20 hours')), 'assigned_to' => $owner], $accOwn);
+        $clock = new Clock($outbox);
+        $this->mail = [];
+        $n1 = $clock->deadlineAlerts($cidA);
+        $n2 = $clock->deadlineAlerts($cidA);
+        $this->check('alerta interna de plazo próximo, una sola vez por ventana', $n1 >= 1 && $n2 === 0 && $this->mail !== [], "$n1/$n2");
+        $this->check('el aviso interno no lleva el contenido del plazo', !str_contains($this->mail[0]['html'] ?? '', 'Vence mañana'));
+        $this->check('un asunto con documentos no se elimina (conservación)', !$matters->delete($ma, $accOwn)->ok);
+        $vacio = $matters->create(['title' => 'ZZTEST creado por error', 'lead_lawyer_id' => $owner], $accOwn);
+        $mv = (new MatterModel())->find($vacio->id);
+        $matters->setLegalHold($mv, true, $accOwn);
+        $this->check('el bloqueo legal impide eliminar', !$matters->delete((new MatterModel())->find($vacio->id), $accOwn)->ok);
+        $matters->setLegalHold($mv, false, $accOwn);
+        $this->check('un asunto vacío creado por error sí se elimina', $matters->delete((new MatterModel())->find($vacio->id), $accOwn)->ok);
+        $re = $matters->reassign($owner, $lawyer2, $accOwn);
+        $this->check('reasignar traslada asuntos, plazos y conversaciones', $re->ok && ($re->data['matters'] ?? 0) > 0);
+        $this->check('no se reasigna a alguien de fuera del despacho', !$matters->reassign($lawyer2, $platform, $accOwn)->ok);
     }
 }

@@ -535,7 +535,28 @@ convive con los expedientes de LeadFlow sin tocarlos.
 - **Bitácora `cmp_lgc_audit`:** solo inserción (el modelo lanza excepción en update/delete).
 - **Esquema:** los hijos del asunto llevan `company_id` indexado pero una sola cascada (desde el asunto) y las
   referencias a `users` van sin FK, para no crear caminos de cascada múltiples (SQL Server los rechaza).
-- **Verificado en PostgreSQL 16** (instalación, `lgc:autotest` 63/63, `lgc:contrato` 42/42, navegador real
+- **Versión 1.1 — controles jurídicos** (salieron de una prueba por roles con criterio legal):
+  - **Tres niveles en `Access`:** acceso a la empresa (miembro, o soporte vigente concedido por el despacho:
+    `cmp_lgc_support_grants`, solo lectura, auditado; **el Super Admin y el distribuidor NO entran por defecto**),
+    ver el asunto, y **trabajarlo** (`canWorkOn`: responsable, equipo salvo `observer`, o administrador).
+    `BaseLgc::findMatter()` exige `canWorkOn` en todo POST. `isInsider()` reserva hechos, objetivos, estrategia
+    y documentos `privileged` al equipo.
+  - **`lgc.share`** (nuevo): compartir documentos, gestionar el acceso al portal y mensajes sin revisión. Sin él,
+    la respuesta queda `pending_review` (hilo en `review`) hasta que la apruebe otra persona (`mensajes/revisar`).
+  - **Conflicto de interés (`ConflictService`):** al crear asunto, cambiar cliente y añadir parte; mismo contacto,
+    documento o nombre normalizado en el lado contrario de otro asunto (cerrados incluidos). Con coincidencias,
+    `Result::fail` con `data['conflicts']` y se exige `conflict_ack` + `conflict_note`; evidencia en
+    `cmp_lgc_conflict_checks`.
+  - **Secreto entre coclientes:** hilos y solicitudes con `account_id`; `is_shared` lo decide el despacho;
+    `ClientView::threadsQuery()/requestsQuery()` y `Outbox::notifyMatter(..., $onlyAccounts)`.
+  - **Ley 1581:** autorización en el contacto (`consent_*`), aviso de privacidad versionado que el portal exige
+    aceptar (`Portal::needsPrivacy()/acceptPrivacy()`), solicitudes de derechos (`threads.kind=data_rights`,
+    10/15 días hábiles sin festivos).
+  - **Poder del representante** (`participants.authority_*`): sin documento y vigencia no hay portal.
+  - **Cierre** con pendientes confirmados; **eliminar** solo vacío o pasada la retención y sin `legal_hold`;
+    **reasignación** de trabajo; **alertas internas** de plazos 7/3/1/0 días y de mensajes/entregas
+    (`Outbox::notifyStaff`, `kind=staff_*`, sin contenido del caso).
+- **Verificado en PostgreSQL 16** (instalación, `lgc:autotest` 104/104, `lgc:contrato` 42/42, navegador real
   claro/oscuro/390 px). El desborde horizontal a 390 px que se ve en las pantallas internas es de la barra
   superior del núcleo (también ocurre en `/dashboard`).
 - **`view()` conserva datos entre llamadas** (`saveData = true`): a `partials/delete_button` se le pasan siempre
