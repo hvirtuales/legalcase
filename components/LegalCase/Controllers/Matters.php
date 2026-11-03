@@ -155,6 +155,9 @@ class Matters extends BaseLgc
                 $data['lastUpdate'] = (new UpdateModel())->where('matter_id', $mid)->where('status', 'published')->orderBy('published_at', 'DESC')->first();
                 $data['nextDeadlines'] = (new DeadlineModel())->where('matter_id', $mid)->whereIn('status', DeadlineModel::OPEN)->orderBy('due_at', 'ASC')->findAll(5);
                 $data['proceedings'] = (new ProceedingModel())->where('matter_id', $mid)->orderBy('id', 'ASC')->findAll();
+                $data['engagement']  = (new \Components\LegalCase\Libraries\EngagementService())->current($mid);
+                $data['nextHearings'] = (new \Components\LegalCase\Models\HearingModel())->where('matter_id', $mid)->where('status', 'scheduled')
+                    ->where('scheduled_at >=', date('Y-m-d H:i:s'))->orderBy('scheduled_at', 'ASC')->findAll(3);
                 break;
 
             case 'procesos':
@@ -163,13 +166,16 @@ class Matters extends BaseLgc
                 break;
 
             case 'plazos':
+                $data['hearings']    = (new \Components\LegalCase\Models\HearingModel())->where('matter_id', $mid)->orderBy('scheduled_at', 'DESC')->findAll(100);
                 $data['deadlines']   = (new DeadlineModel())->where('matter_id', $mid)->orderBy('status', 'DESC')->orderBy('due_at', 'ASC')->findAll(200);
                 $data['tasks']       = (new TaskModel())->where('matter_id', $mid)->orderBy('status', 'DESC')->orderBy('due_at', 'ASC')->findAll(200);
                 $data['proceedings'] = (new ProceedingModel())->where('matter_id', $mid)->findAll();
                 break;
 
             case 'documentos':
-                $data['documents'] = (new DocumentModel())->where('matter_id', $mid)->orderBy('created_at', 'DESC')->findAll(300);
+                $data['documents']  = (new DocumentModel())->currentFor($mid);
+                $data['versions']   = (new DocumentModel())->select('id, previous_id, version, name, created_at, uploaded_by')->where('matter_id', $mid)->where('is_current', 0)->findAll(500);
+                $data['signatures'] = (new \Components\LegalCase\Models\SignatureModel())->where('matter_id', $mid)->orderBy('id', 'DESC')->findAll(100);
                 $data['requests']  = (new DocRequestModel())->where('matter_id', $mid)->orderBy('created_at', 'DESC')->findAll(100);
                 $data['accounts']  = MessageService::accountsFor($cid, $mid);
                 break;

@@ -4,6 +4,7 @@ namespace Components\LegalCase\Controllers;
 
 use App\Libraries\DataTable;
 use Components\LegalCase\Libraries\Audit;
+use Components\LegalCase\Libraries\DataSubjectService;
 use Components\LegalCase\Models\ContactModel;
 use Components\LegalCase\Models\ParticipantModel;
 
@@ -63,6 +64,8 @@ class Contacts extends BaseLgc
         $data['country'] = strtoupper($data['country'] ?: 'CO');
         $data['locale']  = in_array($data['locale'], ['es', 'en'], true) ? $data['locale'] : 'es';
         $data['kind']    = in_array($data['kind'], ContactModel::KINDS, true) ? $data['kind'] : 'person';
+        $cap = (string) $this->request->getPost('legal_capacity');
+        $data['legal_capacity'] = in_array($cap, ContactModel::CAPACITIES, true) && $data['kind'] === 'person' ? $cap : 'full';
 
         // Autorización de tratamiento de datos (Ley 1581, art. 9): estado, medio y prueba.
         $status = (string) $this->request->getPost('consent_status');
@@ -117,5 +120,26 @@ class Contacts extends BaseLgc
         Audit::log($this->companyId(), null, 'contact.deleted', 'contact', (int) $row['id']);
 
         return redirect()->to('legalcase/contactos')->with('success', esc(lang('Lgc.okDeleted')));
+    }
+
+    /** GET — copia de los datos del titular (derecho de acceso, Ley 1581 art. 8). */
+    public function exportData($id = null)
+    {
+        $data = (new DataSubjectService())->export($this->companyId(), (int) $id);
+        if (!$data) {
+            return $this->notFound('legalcase/contactos');
+        }
+        Audit::log($this->companyId(), null, 'contact.exported', 'contact', (int) $id);
+
+        return $this->response->setContentType('application/json')
+            ->setHeader('Content-Disposition', 'attachment; filename="datos-titular-' . (int) $id . '.json"')
+            ->setHeader('Cache-Control', 'no-store, private')
+            ->setBody(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
+    /** POST — supresión (anonimización) cuando no hay deber de conservar. */
+    public function anonymize($id = null)
+    {
+        return $this->done((new DataSubjectService())->anonymize($this->companyId(), (int) $id, $this->acc()), 'legalcase/contactos');
     }
 }

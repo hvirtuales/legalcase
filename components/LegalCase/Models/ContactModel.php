@@ -8,11 +8,12 @@ class ContactModel extends BaseLgcModel
     protected $table          = 'cmp_lgc_contacts';
     protected $useSoftDeletes = true;
     protected $useTimestamps  = true;
-    protected $allowedFields  = ['company_id', 'kind', 'name', 'doc_type', 'doc_number', 'email', 'phone', 'address', 'city', 'country', 'locale', 'notes', 'created_by', 'consent_status', 'consent_at', 'consent_method', 'consent_evidence', 'consent_version'];
+    protected $allowedFields  = ['company_id', 'kind', 'name', 'doc_type', 'doc_number', 'email', 'phone', 'address', 'city', 'country', 'locale', 'notes', 'created_by', 'consent_status', 'consent_at', 'consent_method', 'consent_evidence', 'consent_version', 'legal_capacity'];
 
     public const KINDS     = ['person', 'org'];
     public const CONSENT_STATUSES = ['none', 'granted', 'revoked'];
     public const CONSENT_METHODS  = ['written', 'portal', 'verbal', 'contract'];
+    public const CAPACITIES = ['full', 'minor', 'incapacitated'];
     public const DOC_TYPES = ['CC', 'CE', 'NIT', 'PA', 'TI', 'SSN', 'EIN', 'OTHER'];
 
     protected $validationRules = [
@@ -22,6 +23,7 @@ class ContactModel extends BaseLgcModel
         'country' => 'permit_empty|alpha|exact_length[2]',
         'locale'  => 'permit_empty|in_list[es,en]',
         'consent_status' => 'permit_empty|in_list[none,granted,revoked]',
+        'legal_capacity' => 'permit_empty|in_list[full,minor,incapacitated]',
         'consent_method' => 'permit_empty|in_list[written,portal,verbal,contract]',
     ];
     protected $validationMessages = [

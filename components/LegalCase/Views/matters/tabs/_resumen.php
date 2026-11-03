@@ -86,6 +86,34 @@ $id = (int) $matter['id'];
 
         <div class="card">
             <div class="card-header flex-wrap justify-between gap-2">
+                <div class="flex items-center gap-2"><i class="icon icon-file-earmark"></i><h5 class="font-semibold"><?= lang('Lgc.engagement') ?></h5></div>
+                <a href="<?= base_url('legalcase/asuntos/contrato/' . $id) ?>" class="btn btn-ghost btn-sm"><?= lang($engagement ? 'Lgc.open' : 'Lgc.register') ?></a>
+            </div>
+            <div class="card-body text-sm">
+                <?php if (!$engagement): ?>
+                    <p class="text-warning"><i class="icon icon-exclamation-circle"></i> <?= lang('Lgc.noEngagement') ?></p>
+                <?php else: ?>
+                    <div class="font-semibold"><?= lang('Lgc.engkind_' . $engagement['kind']) ?> <span class="badge <?= ['draft' => 'badge-light', 'sent' => 'badge-warning', 'signed' => 'badge-success', 'terminated' => 'badge-secondary'][$engagement['status']] ?? 'badge-light' ?>"><?= lang('Lgc.engstatus_' . $engagement['status']) ?></span></div>
+                    <div class="text-xs text-muted"><?= lang('Lgc.fee_' . $engagement['fee_type']) ?></div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if ($nextHearings): ?>
+            <div class="card">
+                <div class="card-header"><i class="icon icon-landmark"></i><h5 class="font-semibold"><?= lang('Lgc.nextHearings') ?></h5></div>
+                <div class="card-body">
+                    <ul class="space-y-2 text-sm">
+                        <?php foreach ($nextHearings as $h): ?>
+                            <li><div class="font-semibold"><?= esc($h['title']) ?></div><div class="text-xs text-muted"><?= esc(Meta::date($h['scheduled_at'])) ?> · <?= lang('Lgc.hmode_' . $h['mode']) ?></div></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <div class="card">
+            <div class="card-header flex-wrap justify-between gap-2">
                 <div class="flex items-center gap-2"><i class="icon icon-clock"></i><h5 class="font-semibold"><?= lang('Lgc.nextDeadlines') ?></h5></div>
                 <a href="<?= base_url('legalcase/asuntos/ficha/' . $id . '?tab=plazos') ?>" class="btn btn-ghost btn-sm"><?= lang('Lgc.seeAll') ?></a>
             </div>

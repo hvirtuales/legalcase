@@ -14,10 +14,12 @@ class ParticipantModel extends BaseLgcModel
     protected $useTimestamps  = true;
     protected $allowedFields  = ['company_id', 'matter_id', 'contact_id', 'role', 'portal_access', 'notes', 'authority_document_id', 'authority_scope', 'authority_until'];
 
-    public const ROLES        = ['client', 'representative', 'payer', 'counterparty', 'counsel', 'witness', 'authority', 'other'];
-    public const PORTAL_ROLES = ['client', 'representative'];
+    public const ROLES        = ['client', 'representative', 'guardian', 'payer', 'counterparty', 'counsel', 'witness', 'authority', 'other'];
+    public const PORTAL_ROLES = ['client', 'representative', 'guardian'];
+    /** Papeles que actúan por otra persona: exigen documento que lo acredite (poder, discernimiento). */
+    public const AUTHORITY_ROLES = ['representative', 'guardian'];
 
-    protected $validationRules = ['role' => 'required|in_list[client,representative,payer,counterparty,counsel,witness,authority,other]'];
+    protected $validationRules = ['role' => 'required|in_list[client,representative,guardian,payer,counterparty,counsel,witness,authority,other]'];
 
     /** Partes con el contacto unido. */
     public function withContacts(int $matterId): array

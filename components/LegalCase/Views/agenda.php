@@ -17,6 +17,23 @@ $canEdit = Access::current()->can('lgc.edit');
     <div class="alert alert-info mb-0"><i class="icon icon-info-circle"></i><span><?= lang('Lgc.deadlineDisclaimer') ?></span></div>
     <a href="<?= base_url('legalcase/agenda' . ($mine ? '' : '?mios=1')) ?>" class="btn <?= $mine ? 'btn-primary' : 'btn-ghost' ?> btn-sm"><i class="icon icon-person"></i> <?= lang('Lgc.onlyMine') ?></a>
 </div>
+<?php if ($hearings): ?>
+    <div class="card mb-4">
+        <div class="card-header"><i class="icon icon-landmark"></i><h5 class="font-semibold"><?= lang('Lgc.hearings') ?></h5></div>
+        <div class="card-body">
+            <ul class="divide-y divide-line text-sm">
+                <?php foreach ($hearings as $h): ?>
+                    <li class="py-2">
+                        <div class="flex flex-wrap items-center gap-2"><?= $link((int) $h['matter_id']) ?> <span class="font-semibold"><?= esc($h['title']) ?></span>
+                            <span class="badge badge-light"><?= lang('Lgc.hmode_' . $h['mode']) ?></span>
+                            <?php if ($h['status'] === 'postponed'): ?><span class="badge badge-warning"><?= lang('Lgc.hstatus_postponed') ?></span><?php endif; ?></div>
+                        <div class="text-xs text-muted"><?= esc(Meta::date($h['scheduled_at'])) ?><?= $h['location'] ? ' · ' . esc($h['location']) : '' ?></div>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    </div>
+<?php endif; ?>
 <div class="grid gap-4 lg:grid-cols-2">
     <div class="card">
         <div class="card-header"><i class="icon icon-clock"></i><h5 class="font-semibold"><?= lang('Lgc.deadlines') ?></h5></div>

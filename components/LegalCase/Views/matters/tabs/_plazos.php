@@ -70,6 +70,42 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
         </div>
 
         <div class="card">
+            <div class="card-header"><i class="icon icon-landmark"></i><h5 class="font-semibold"><?= lang('Lgc.hearings') ?></h5></div>
+            <div class="card-body">
+                <?php if (!$hearings): ?>
+                    <p class="text-sm text-muted"><?= lang('Lgc.noHearings') ?></p>
+                <?php else: ?>
+                    <ul class="space-y-3">
+                        <?php foreach ($hearings as $h): ?>
+                            <li class="rounded-md border border-line p-3 text-sm">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="font-semibold"><?= esc($h['title']) ?>
+                                        <span class="badge badge-light"><?= lang('Lgc.hmode_' . $h['mode']) ?></span>
+                                        <span class="badge <?= ['scheduled' => 'badge-info', 'held' => 'badge-success', 'postponed' => 'badge-warning', 'cancelled' => 'badge-secondary'][$h['status']] ?? 'badge-light' ?>"><?= lang('Lgc.hstatus_' . $h['status']) ?></span>
+                                        <?php if ((int) $h['is_shared']): ?><span class="badge badge-success"><i class="icon icon-eye"></i> <?= lang('Lgc.visibleToClient') ?></span><?php endif; ?>
+                                    </div>
+                                    <div class="text-xs <?= $h['status'] === 'scheduled' && Meta::isPast($h['scheduled_at']) ? 'text-danger' : 'text-muted' ?>"><?= esc(Meta::date($h['scheduled_at'])) ?> · <?= (int) $h['duration_min'] ?> min</div>
+                                </div>
+                                <div class="mt-1 text-xs text-muted">
+                                    <?= esc($h['location'] ?: '') ?><?= $h['link'] ? ' · <a class="text-primary" href="' . esc($h['link'], 'attr') . '" target="_blank" rel="noopener noreferrer">' . esc(lang('Lgc.hearingLink')) . '</a>' : '' ?>
+                                    <?= (int) $h['client_attendance'] ? ' · ' . lang('Lgc.clientMustAttend') : '' ?>
+                                </div>
+                                <?php if ($h['internal_notes']): ?><p class="mt-1 whitespace-pre-line text-xs"><i class="icon icon-lock"></i> <?= esc($h['internal_notes']) ?></p><?php endif; ?>
+                                <?php if (($canWork && $acc->can('lgc.edit')) && $h['status'] === 'scheduled'): ?>
+                                    <form method="post" action="<?= base_url('legalcase/audiencias/estado/' . (int) $h['id']) ?>" class="mt-2 flex flex-wrap gap-1"><?= csrf_field() ?>
+                                        <button name="status" value="held" class="btn btn-success btn-sm"><i class="icon icon-check-circle"></i> <?= lang('Lgc.hstatus_held') ?></button>
+                                        <button name="status" value="postponed" class="btn btn-ghost btn-sm"><?= lang('Lgc.hstatus_postponed') ?></button>
+                                        <button name="status" value="cancelled" class="btn btn-ghost btn-sm" onclick="return confirm('<?= esc(lang('Lgc.confirmCancel'), 'js') ?>')"><?= lang('Lgc.hstatus_cancelled') ?></button>
+                                    </form>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-header"><i class="icon icon-list-check"></i><h5 class="font-semibold"><?= lang('Lgc.tasks') ?></h5></div>
             <div class="card-body">
                 <?php if (!$tasks): ?>
@@ -109,15 +145,28 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
                             <label class="form-label" for="dl-title"><?= lang('Lgc.fTitle') ?> <span class="text-danger">*</span></label>
                             <input id="dl-title" type="text" name="title" class="form-input" required maxlength="190" placeholder="<?= esc(lang('Lgc.phDeadline'), 'attr') ?>">
                         </div>
+                        <div class="form-group">
+                            <label class="form-label" for="dl-start"><?= lang('Lgc.fStartsOn') ?></label>
+                            <input id="dl-start" type="date" name="starts_on" class="form-input">
+                            <small class="form-hint"><?= lang('Lgc.fStartsOnHint') ?></small>
+                        </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div class="form-group">
-                                <label class="form-label" for="dl-start"><?= lang('Lgc.fStartsOn') ?></label>
-                                <input id="dl-start" type="date" name="starts_on" class="form-input">
+                                <label class="form-label" for="dl-days"><?= lang('Lgc.fTermDays') ?></label>
+                                <input id="dl-days" type="number" name="term_days" min="1" max="3650" class="form-input">
                             </div>
                             <div class="form-group">
-                                <label class="form-label" for="dl-due"><?= lang('Lgc.fDueAt') ?> <span class="text-danger">*</span></label>
-                                <input id="dl-due" type="datetime-local" name="due_at" class="form-input" required>
+                                <label class="form-label" for="dl-unit"><?= lang('Lgc.fTermUnit') ?></label>
+                                <select id="dl-unit" name="term_unit" class="form-select">
+                                    <option value="business"><?= lang('Lgc.unit_business') ?></option>
+                                    <option value="calendar"><?= lang('Lgc.unit_calendar') ?></option>
+                                </select>
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="dl-due"><?= lang('Lgc.fDueAt') ?></label>
+                            <input id="dl-due" type="datetime-local" name="due_at" class="form-input">
+                            <small class="form-hint"><?= lang('Lgc.fDueAtCalcHint') ?></small>
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="dl-basis"><?= lang('Lgc.fBasis') ?></label>
@@ -142,6 +191,58 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
                             <input type="checkbox" id="dl-crit" name="is_critical" value="1" class="form-check-input">
                             <label for="dl-crit" class="form-check-label"><?= lang('Lgc.fCritical') ?><span class="block text-xs text-muted"><?= lang($dual ? 'Lgc.fCriticalHintDual' : 'Lgc.fCriticalHint') ?></span></label>
                         </div>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="icon icon-save"></i> <?= lang('Lgc.add') ?></button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><i class="icon icon-landmark"></i><h5 class="font-semibold"><?= lang('Lgc.hearingNew') ?></h5></div>
+                <div class="card-body">
+                    <form method="post" action="<?= base_url('legalcase/asuntos/audiencia/' . $id) ?>" class="space-y-3">
+                        <?= csrf_field() ?>
+                        <div class="form-group">
+                            <label class="form-label" for="hr-title"><?= lang('Lgc.fTitle') ?> <span class="text-danger">*</span></label>
+                            <input id="hr-title" type="text" name="title" class="form-input" required maxlength="190" placeholder="<?= esc(lang('Lgc.phHearing'), 'attr') ?>">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="form-group">
+                                <label class="form-label" for="hr-at"><?= lang('Lgc.fScheduledAt') ?> <span class="text-danger">*</span></label>
+                                <input id="hr-at" type="datetime-local" name="scheduled_at" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="hr-mode"><?= lang('Lgc.fMode') ?></label>
+                                <select id="hr-mode" name="mode" class="form-select">
+                                    <?php foreach (\Components\LegalCase\Models\HearingModel::MODES as $m): ?><option value="<?= $m ?>"><?= lang('Lgc.hmode_' . $m) ?></option><?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="hr-loc"><?= lang('Lgc.fLocation') ?></label>
+                            <input id="hr-loc" type="text" name="location" class="form-input" maxlength="255" placeholder="<?= esc(lang('Lgc.phLocation'), 'attr') ?>">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="hr-link"><?= lang('Lgc.fLink') ?></label>
+                            <input id="hr-link" type="url" name="link" class="form-input" maxlength="500" placeholder="https://">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="hr-cn"><?= lang('Lgc.fClientNotes') ?></label>
+                            <textarea id="hr-cn" name="client_notes" rows="2" class="form-textarea" placeholder="<?= esc(lang('Lgc.phClientNotes'), 'attr') ?>"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="hr-in"><?= lang('Lgc.fInternalNotes') ?></label>
+                            <textarea id="hr-in" name="internal_notes" rows="2" class="form-textarea"></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" id="hr-att" name="client_attendance" value="1" class="form-check-input">
+                            <label for="hr-att" class="form-check-label"><?= lang('Lgc.clientMustAttend') ?></label>
+                        </div>
+                        <?php if ($acc->can('lgc.share')): ?>
+                            <div class="form-check">
+                                <input type="checkbox" id="hr-sh" name="is_shared" value="1" class="form-check-input">
+                                <label for="hr-sh" class="form-check-label"><?= lang('Lgc.shareHearing') ?><span class="block text-xs text-muted"><?= lang('Lgc.shareHearingHint') ?></span></label>
+                            </div>
+                        <?php endif; ?>
                         <button type="submit" class="btn btn-primary btn-sm"><i class="icon icon-save"></i> <?= lang('Lgc.add') ?></button>
                     </form>
                 </div>

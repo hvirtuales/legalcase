@@ -17,6 +17,14 @@ use Components\LegalCase\Libraries\DocumentService;
 use Components\LegalCase\Libraries\UpdateService;
 use Components\LegalCase\Libraries\ConflictService;
 use Components\LegalCase\Libraries\Support;
+use Components\LegalCase\Libraries\Calendar;
+use Components\LegalCase\Libraries\HearingService;
+use Components\LegalCase\Libraries\SignatureService;
+use Components\LegalCase\Libraries\EngagementService;
+use Components\LegalCase\Libraries\DataSubjectService;
+use Components\LegalCase\Models\HearingModel;
+use Components\LegalCase\Models\SignatureModel;
+use Components\LegalCase\Models\CalendarDayModel;
 use Components\LegalCase\Models\ConflictCheckModel;
 use Components\LegalCase\Models\MessageModel;
 use Components\LegalCase\Models\AuditModel;
@@ -422,6 +430,7 @@ class LgcAutotest extends BaseCommand
         $this->check('un asunto cerrado no recibe borradores normales', !$upd->createDraft((new MatterModel())->find($r1->id), 'regular', ['what_happened' => 'x'], $accOwn)->ok);
 
         $this->legalControls($cidA, $cidB, $owner, $lawyer2, $para, $auditor, $platform, $outbox);
+        $this->practice($cidA, $owner, $para, $outbox);
     }
 
     // ------------------------------------------------------------------ 1.1 controles jurídicos
@@ -569,5 +578,145 @@ class LgcAutotest extends BaseCommand
         $re = $matters->reassign($owner, $lawyer2, $accOwn);
         $this->check('reasignar traslada asuntos, plazos y conversaciones', $re->ok && ($re->data['matters'] ?? 0) > 0);
         $this->check('no se reasigna a alguien de fuera del despacho', !$matters->reassign($lawyer2, $platform, $accOwn)->ok);
+    }
+
+    // ------------------------------------------------------------------ 1.2 gestión de la práctica
+
+    private function practice(int $cidA, int $owner, int $para, Outbox $outbox): void
+    {
+        $accOwn   = new Access($cidA, $owner);
+        $accPara  = new Access($cidA, $para);
+        $matters  = new MatterService();
+        $contacts = new ContactModel();
+        $mk = function (string $name, string $email, string $cap = 'full') use ($contacts, $cidA): int {
+            $contacts->insert(['company_id' => $cidA, 'kind' => 'person', 'name' => $name, 'email' => $email, 'doc_number' => (string) random_int(10000, 99999999), 'locale' => 'es', 'legal_capacity' => $cap]);
+
+            return (int) $contacts->getInsertID();
+        };
+
+        // ── 14. Calendario y cálculo de plazos ────────────────────────────────
+        $this->title('14. Calendario de términos');
+        $fest = Calendar::colombia(2026);
+        $this->check('festivos 2026 (Ley Emiliani y Pascua) correctos', isset($fest['2026-01-12'], $fest['2026-03-23'], $fest['2026-04-02'], $fest['2026-04-03'], $fest['2026-05-18'], $fest['2026-06-08'], $fest['2026-06-15'], $fest['2026-11-16']));
+        (new SettingsModel())->where('company_id', $cidA)->set(['calendar_mode' => 'judicial'])->update();
+        $cal = new Calendar($cidA);
+        $this->check('3 días hábiles desde el 1-abr-2026 saltan Semana Santa → 8-abr', $cal->addBusinessDays('2026-04-01', 3) === '2026-04-08', $cal->addBusinessDays('2026-04-01', 3));
+        $this->check('modo judicial: salta la vacancia y el festivo de Reyes 2027 → 12-ene-2027', $cal->addBusinessDays('2026-12-18', 1) === '2027-01-12', $cal->addBusinessDays('2026-12-18', 1));
+        (new SettingsModel())->where('company_id', $cidA)->set(['calendar_mode' => 'common'])->update();
+        $this->check('modo común: la vacancia no cuenta → 21-dic-2026', (new Calendar($cidA))->addBusinessDays('2026-12-18', 1) === '2026-12-21');
+        (new CalendarDayModel())->insert(['company_id' => $cidA, 'day' => '2026-12-21', 'kind' => 'suspension', 'name' => 'ZZTEST suspensión', 'created_at' => date('Y-m-d H:i:s')]);
+        $this->check('un día de suspensión del despacho también se salta → 22-dic', (new Calendar($cidA))->addBusinessDays('2026-12-18', 1) === '2026-12-22');
+        (new SettingsModel())->where('company_id', $cidA)->set(['calendar_mode' => 'judicial'])->update();
+
+        $cli = $mk('ZZTEST Pilar Práctica', 'zz.pilar@example.invalid');
+        $m   = $matters->create(['title' => 'ZZTEST práctica', 'client_contact_id' => $cli, 'lead_lawyer_id' => $owner], $accOwn);
+        $mx  = (new MatterModel())->find($m->id);
+        $dl  = (new DeadlineService())->createDeadline($mx, ['title' => 'Contestar', 'starts_on' => '2026-04-01', 'term_days' => 3, 'term_unit' => 'business'], $accOwn);
+        $row = (new DeadlineModel())->find((int) $dl->id);
+        $this->check('el plazo calculado propone la fecha y sigue «por validar»', $dl->ok && str_starts_with((string) $row['due_at'], '2026-04-08') && $row['status'] === 'to_validate');
+        $this->check('el fundamento deja constancia del cómputo y de los días saltados', str_contains((string) $row['basis'], '2026-04-08') && str_contains((string) $row['basis'], '2026-04-02'));
+
+        // ── 15. Audiencias ────────────────────────────────────────────────────
+        $this->title('15. Audiencias');
+        $hs = new HearingService($outbox);
+        $this->check('audiencia virtual sin enlace ni lugar se rechaza', !$hs->save($mx, ['title' => 'Inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+3 days')), 'mode' => 'virtual'], $accOwn)->ok);
+        $this->check('un enlace que no es https se rechaza', !$hs->save($mx, ['title' => 'Inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+3 days')), 'mode' => 'virtual', 'link' => 'http://x.example'], $accOwn)->ok);
+        $this->check('el paralegal no la comparte con el cliente', !$hs->save($mx, ['title' => 'Inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+3 days')), 'mode' => 'in_person', 'is_shared' => 1], $accPara)->ok);
+        $h = $hs->save($mx, ['title' => 'Audiencia inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+20 hours')), 'mode' => 'virtual',
+            'link' => 'https://meet.example/abc', 'internal_notes' => 'NOTA-INTERNA-AUDIENCIA', 'client_notes' => 'Traiga su cédula', 'is_shared' => 1, 'client_attendance' => 1], $accOwn);
+        $this->check('se programa y crea la tarea de preparación', $h->ok && (new TaskModel())->where('ref', 'hearing_prep:' . $h->id)->where('status', 'open')->countAllResults() === 1);
+
+        $parts = [];
+        foreach ((new ParticipantModel())->where('matter_id', $m->id)->findAll() as $p) {
+            $parts[(int) $p['contact_id']] = $p;
+        }
+        $portal = new Portal();
+        $g   = $portal->grant($mx, $parts[$cli], $accOwn, $this->sender());
+        $acc = (new PortalAccountModel())->find((int) $g->id);
+        $view = new ClientView();
+        $det  = $view->detail($acc, $view->matter($acc, $m->id));
+        $this->check('el cliente ve la audiencia compartida, sin las notas internas', count($det['hearings']) === 1 && !str_contains(json_encode($det['hearings']), 'NOTA-INTERNA'));
+        $before = (new DeliveryModel())->where('matter_id', $m->id)->where('kind', 'hearing')->countAllResults();
+        $hrow   = (new HearingModel())->find((int) $h->id);
+        $hs->save($mx, ['title' => 'Audiencia inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+2 days')), 'mode' => 'virtual', 'link' => 'https://meet.example/abc', 'is_shared' => 1], $accOwn, $hrow);
+        $hs->save($mx, ['title' => 'Audiencia inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+2 days')), 'mode' => 'virtual', 'link' => 'https://meet.example/abc', 'is_shared' => 1], $accOwn, (new HearingModel())->find((int) $h->id));
+        $after = (new DeliveryModel())->where('matter_id', $m->id)->where('kind', 'hearing')->countAllResults();
+        $this->check('reprogramar avisa otra vez; guardar sin cambios no', $after === $before + 1, "$before → $after");
+        $hs->setStatus($mx, (new HearingModel())->find((int) $h->id), 'held', $accOwn);
+        $this->check('marcada como realizada, la preparación se cierra', (new TaskModel())->where('ref', 'hearing_prep:' . $h->id)->where('status', 'done')->countAllResults() === 1);
+
+        // ── 16. Versiones y firma electrónica ─────────────────────────────────
+        $this->title('16. Versiones de documentos y firma electrónica');
+        $dir = WRITEPATH . 'uploads/lgc/' . $cidA;
+        @mkdir($dir, 0750, true);
+        $put = function (string $content, array $extra = []) use ($dir, $cidA, $m): array {
+            $name = bin2hex(random_bytes(8)) . '.bin';
+            file_put_contents($dir . '/' . $name, $content);
+            $model = new DocumentModel();
+            $model->insert($extra + ['company_id' => $cidA, 'matter_id' => $m->id, 'name' => 'contrato.pdf', 'path' => $name, 'mime' => 'application/pdf',
+                'size' => strlen($content), 'sha256' => hash('sha256', $content), 'classification' => 'shared', 'is_current' => 1, 'version' => 1]);
+
+            return (new DocumentModel())->find((int) $model->getInsertID());
+        };
+        $v1 = $put('%PDF version 1');
+        $v2 = $put('%PDF version 2', ['version' => 2, 'previous_id' => (int) $v1['id']]);
+        (new DocumentModel())->update((int) $v1['id'], ['is_current' => 0]);
+        $docsIds = array_column($view->detail($acc, $view->matter($acc, $m->id))['docs'], 'id');
+        $this->check('el cliente solo ve la versión vigente', in_array((string) $v2['id'], array_map('strval', $docsIds), true) && !in_array((string) $v1['id'], array_map('strval', $docsIds), true));
+        $this->check('la historia de versiones se conserva', count((new DocumentService())->history((new DocumentModel())->find((int) $v2['id']))) === 2);
+
+        $sig = new SignatureService($outbox);
+        $this->check('no se pide firma sobre una versión anterior', !$sig->request($mx, (new DocumentModel())->find((int) $v1['id']), (int) $acc['id'], 'x', $accOwn)->ok);
+        $this->check('el paralegal no pide firmas', !$sig->request($mx, $v2, (int) $acc['id'], 'x', $accPara)->ok);
+        $es = new EngagementService();
+        $this->check('el contrato exige describir el alcance', !$es->save($mx, ['kind' => 'services_contract', 'fee_type' => 'fixed'], $accOwn)->ok);
+        $es->save($mx, ['kind' => 'services_contract', 'fee_type' => 'contingency', 'contingency_pct' => '20', 'scope' => 'Primera instancia', 'document_id' => (int) $v2['id']], $accOwn);
+        $send = $es->sendForSignature($mx, (int) $acc['id'], $accOwn);
+        $this->check('el contrato se envía a firma', $send->ok && $es->current($m->id)['status'] === 'sent', $send->message);
+        $this->check('no se duplica una firma pendiente', !$sig->request($mx, $v2, (int) $acc['id'], 'otra', $accOwn)->ok);
+        $srow = $view->signature($acc, (int) $send->id);
+        $this->check('firmar exige nombre completo y aceptación', !$sig->sign($acc, $srow, 'Pi', '', true)->ok && !$sig->sign($acc, $srow, 'Pilar Práctica', '', false)->ok);
+        $ok = $sig->sign($acc, $srow, 'Pilar Práctica Pérez', '12345678', true);
+        $signed = (new SignatureModel())->find((int) $send->id);
+        $this->check('firmado, con evidencia íntegra y el contrato queda firmado', $ok->ok && SignatureService::verify($signed) && $es->current($m->id)['status'] === 'signed');
+        db_connect()->table('cmp_lgc_signatures')->where('id', (int) $send->id)->update(['signer_name' => 'Otra persona']);
+        $this->check('si alguien altera la evidencia, se detecta', !SignatureService::verify((new SignatureModel())->find((int) $send->id)));
+        $this->check('un contrato firmado no se edita', !$es->save($mx, ['kind' => 'services_contract', 'fee_type' => 'fixed', 'scope' => 'Cambio'], $accOwn)->ok);
+        $v3  = $put('%PDF otro documento');
+        $req = $sig->request($mx, $v3, (int) $acc['id'], 'Anexo', $accOwn);
+        file_put_contents($dir . '/' . $v3['path'], '%PDF ALTERADO');
+        $this->check('si el archivo cambió después de pedir la firma, no se firma', !$sig->sign($acc, $view->signature($acc, (int) $req->id), 'Pilar Práctica Pérez', '', true)->ok);
+
+        // ── 17. Menores e incapaces ───────────────────────────────────────────
+        $this->title('17. Menores e incapaces');
+        $menor = $mk('ZZTEST Tomás Menor', 'zz.tomas@example.invalid', 'minor');
+        $tutor = $mk('ZZTEST Teresa Tutora', 'zz.teresa@example.invalid');
+        $m2 = $matters->create(['title' => 'ZZTEST alimentos', 'lead_lawyer_id' => $owner], $accOwn);
+        $mm = (new MatterModel())->find($m2->id);
+        $matters->addParticipant($mm, $menor, 'client', $accOwn);
+        $matters->addParticipant($mm, $tutor, 'guardian', $accOwn);
+        $mm = (new MatterModel())->find($m2->id);
+        $this->check('con un menor, el asunto pasa a sensible y restringido al equipo', $mm['sensitivity'] === 'high' && $mm['visibility'] === 'team');
+        $pp = [];
+        foreach ((new ParticipantModel())->where('matter_id', $m2->id)->findAll() as $p) {
+            $pp[(int) $p['contact_id']] = $p;
+        }
+        $this->check('el menor no recibe acceso al portal', !$portal->grant($mm, $pp[$menor], $accOwn, $this->sender())->ok);
+        $this->check('el tutor sin documento que lo acredite tampoco', !$portal->grant($mm, $pp[$tutor], $accOwn, $this->sender())->ok);
+        $doc = $put('%PDF discernimiento', ['matter_id' => $m2->id, 'classification' => 'internal']);
+        $matters->setAuthority($mm, (int) $pp[$tutor]['id'], ['authority_document_id' => (int) $doc['id']], $accOwn);
+        $this->check('el tutor acreditado sí accede', $portal->grant($mm, (new ParticipantModel())->find((int) $pp[$tutor]['id']), $accOwn, $this->sender())->ok);
+
+        // ── 18. Derechos del titular ──────────────────────────────────────────
+        $this->title('18. Exportación y supresión de datos');
+        $ds  = new DataSubjectService();
+        $exp = $ds->export($cidA, $cli);
+        $this->check('la exportación incluye datos, autorización y asuntos (sin contenido privilegiado)', $exp && $exp['contact']['name'] === 'ZZTEST Pilar Práctica' && count($exp['matters']) >= 1 && !str_contains(json_encode($exp), 'strategy'));
+        $this->check('no se suprime a quien tiene un asunto con deber de conservación', !$ds->anonymize($cidA, $cli, $accOwn)->ok);
+        $solo = $mk('ZZTEST Sin Asuntos', 'zz.solo@example.invalid');
+        $an   = $ds->anonymize($cidA, $solo, $accOwn);
+        $c    = (new ContactModel())->find($solo);
+        $this->check('sin asuntos, se suprimen sus datos identificativos', $an->ok && !str_contains((string) $c['name'], 'Sin Asuntos') && $c['email'] === '');
+        $this->check('la exportación de otro despacho no se resuelve', $ds->export($cidA + 999999, $cli) === null);
     }
 }

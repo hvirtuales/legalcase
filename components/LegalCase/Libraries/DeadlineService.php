@@ -56,6 +56,22 @@ class DeadlineService
             'assigned_to'   => Team::isMember($acc->companyId, (int) ($in['assigned_to'] ?? 0)) ? (int) $in['assigned_to'] : ($matter['lead_lawyer_id'] ?: null),
             'created_by'    => $acc->userId ?: null,
         ];
+        // Cálculo determinista con el calendario del despacho: PROPONE la fecha; el plazo nace
+        // igualmente «por validar» y el fundamento deja constancia del cómputo.
+        $termDays = (int) ($in['term_days'] ?? 0);
+        if ($data['due_at'] === null && $termDays > 0 && $data['starts_on']) {
+            $cal  = new Calendar($acc->companyId);
+            $unit = ($in['term_unit'] ?? 'business') === 'calendar' ? 'calendar' : 'business';
+            $due  = $unit === 'business' ? $cal->addBusinessDays($data['starts_on'], $termDays) : $cal->addCalendarDays($data['starts_on'], $termDays);
+            $data['due_at'] = $due . ' 23:59:00';
+            $skipped        = $cal->nonWorkingBetween($data['starts_on'], $due);
+            $note           = lang('Lgc.termComputed', [$termDays, lang('Lgc.unit_' . $unit), $data['starts_on'], $due, lang('Lgc.calmode_' . $cal->mode())]);
+            if ($skipped) {
+                $note .= ' ' . lang('Lgc.termSkipped', [implode(', ', array_map(static fn ($d, $n) => $d . ' (' . $n . ')', array_keys($skipped), $skipped))]);
+            }
+            $data['basis'] = trim($data['basis'] . "\n" . $note);
+        }
+
         $model = new DeadlineModel();
         if (!$model->insert($data)) {
             return Result::fail(implode(' ', $model->errors()));

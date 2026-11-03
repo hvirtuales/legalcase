@@ -53,11 +53,15 @@ class Portal
         if (!(int) $settings['portal_enabled']) {
             return Result::fail(lang('Lgc.errPortalDisabled'));
         }
-        // El representante solo accede con un poder acreditado y vigente.
-        if ($participant['role'] === 'representative' && !self::authorityValid($participant)) {
+        // Quien actúa por otro (apoderado, tutor o curador) solo accede con el documento que lo acredita, vigente.
+        if (in_array($participant['role'], ParticipantModel::AUTHORITY_ROLES, true) && !self::authorityValid($participant)) {
             return Result::fail(lang('Lgc.errAuthorityMissing'));
         }
         $contact = (new ContactModel())->own($acc->companyId, (int) $participant['contact_id']);
+        // Un menor o una persona con capacidad restringida no accede: actúa su tutor o curador.
+        if ($contact && ($contact['legal_capacity'] ?? 'full') !== 'full') {
+            return Result::fail(lang('Lgc.errPortalIncapable'));
+        }
         $email   = strtolower(trim((string) ($contact['email'] ?? '')));
         if (!$contact || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return Result::fail(lang('Lgc.errPortalEmail'));
@@ -121,7 +125,7 @@ class Portal
     /** ¿El poder del representante está acreditado (documento) y vigente? */
     public static function authorityValid(array $participant): bool
     {
-        if (($participant['role'] ?? '') !== 'representative') {
+        if (!in_array($participant['role'] ?? '', ParticipantModel::AUTHORITY_ROLES, true)) {
             return true;
         }
         if (empty($participant['authority_document_id'])) {

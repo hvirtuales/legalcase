@@ -8,14 +8,16 @@ class SettingsModel extends BaseLgcModel
     protected $table          = 'cmp_lgc_settings';
     protected $useSoftDeletes = false;
     protected $useTimestamps  = true;
-    protected $allowedFields  = ['company_id', 'matter_prefix', 'matter_sequence', 'approval_policy', 'deadline_policy', 'default_cadence_days', 'response_sla_hours', 'portal_enabled', 'notify_email', 'portal_help', 'privacy_version', 'privacy_text', 'retention_years'];
+    protected $allowedFields  = ['company_id', 'matter_prefix', 'matter_sequence', 'approval_policy', 'deadline_policy', 'default_cadence_days', 'response_sla_hours', 'portal_enabled', 'notify_email', 'portal_help', 'privacy_version', 'privacy_text', 'retention_years', 'calendar_mode'];
 
     public const APPROVAL_POLICIES = ['self', 'reviewer'];
     public const DEADLINE_POLICIES = ['single', 'dual'];
+    public const CALENDAR_MODES    = ['common', 'judicial'];
 
     protected $validationRules = [
         'approval_policy'      => 'permit_empty|in_list[self,reviewer]',
         'deadline_policy'      => 'permit_empty|in_list[single,dual]',
+        'calendar_mode'        => 'permit_empty|in_list[common,judicial]',
         'default_cadence_days' => 'permit_empty|integer|greater_than[0]|less_than[366]',
         'response_sla_hours'   => 'permit_empty|integer|greater_than[0]|less_than[721]',
         'matter_prefix'        => 'permit_empty|alpha_numeric|max_length[10]',

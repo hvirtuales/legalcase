@@ -6,7 +6,9 @@ use Components\LegalCase\Libraries\Audit;
 use Components\LegalCase\Libraries\DocumentService;
 use Components\LegalCase\Libraries\MessageService;
 use Components\LegalCase\Models\DocRequestModel;
+use Components\LegalCase\Libraries\SignatureService;
 use Components\LegalCase\Models\DocumentModel;
+use Components\LegalCase\Models\SignatureModel;
 
 /** Documentos del asunto y solicitudes de documentos al cliente. */
 class Documents extends BaseLgc
@@ -105,5 +107,62 @@ class Documents extends BaseLgc
             (new MessageService())->reviewRequest($req, $matter, (string) $this->post('decision'), (string) $this->post('note'), $this->acc()),
             $this->matterUrl($matter, 'documentos')
         );
+    }
+
+    /** POST — sube una nueva versión de un documento (la anterior se conserva). */
+    public function version($id = null)
+    {
+        [$doc, $matter] = $this->findChild(DocumentModel::class, $id);
+        if (!$doc) {
+            return $this->notFound();
+        }
+        if ($doc['classification'] === 'privileged' && !$this->acc()->isInsider($matter)) {
+            return redirect()->to($this->matterUrl($matter, 'documentos'))->with('error', esc(lang('Lgc.errPrivileged')));
+        }
+        $file = $this->request->getFile('file');
+        if (!$file) {
+            return redirect()->to($this->matterUrl($matter, 'documentos'))->with('error', esc(lang('Lgc.errFile')));
+        }
+
+        return $this->done((new DocumentService())->newVersion($doc, $file, $this->acc()), $this->matterUrl($matter, 'documentos'));
+    }
+
+    /** POST — pide al cliente que firme un documento compartido. */
+    public function requestSignature($id = null)
+    {
+        [$doc, $matter] = $this->findChild(DocumentModel::class, $id);
+        if (!$doc) {
+            return $this->notFound();
+        }
+
+        return $this->done((new SignatureService())->request($matter, $doc, (int) $this->post('account_id'), (string) $this->post('purpose'), $this->acc()), $this->matterUrl($matter, 'documentos'));
+    }
+
+    public function cancelSignature($id = null)
+    {
+        [$sig, $matter] = $this->findChild(SignatureModel::class, $id);
+        if (!$sig) {
+            return $this->notFound();
+        }
+
+        return $this->done((new SignatureService())->cancel($sig, $this->acc()), $this->matterUrl($matter, 'documentos'));
+    }
+
+    /** GET — constancia imprimible de la firma (evidencia). */
+    public function evidence($id = null)
+    {
+        [$sig, $matter] = $this->findChild(SignatureModel::class, $id);
+        if (!$sig) {
+            return $this->notFound();
+        }
+
+        return view('Components\LegalCase\Views\signatures\evidence', [
+            'title'   => lang('Lgc.signEvidence'),
+            'sig'     => $sig,
+            'matter'  => $matter,
+            'doc'     => (new DocumentModel())->withDeleted()->find((int) $sig['document_id']),
+            'account' => db_connect()->table('cmp_lgc_portal_accounts')->where('id', (int) $sig['account_id'])->get()->getRowArray(),
+            'intact'  => SignatureService::verify($sig),
+        ]);
     }
 }

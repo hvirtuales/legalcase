@@ -9,6 +9,7 @@ use Components\LegalCase\Libraries\ClientView;
 use Components\LegalCase\Libraries\DocumentService;
 use Components\LegalCase\Libraries\MessageService;
 use Components\LegalCase\Libraries\Portal;
+use Components\LegalCase\Libraries\SignatureService;
 use Components\LegalCase\Models\PortalAccountModel;
 use Components\LegalCase\Models\SettingsModel;
 
@@ -274,5 +275,34 @@ class ClientPortal extends BaseController
         $this->request->setLocale($data['locale']);
 
         return redirect()->to(Portal::url())->with('lgc_ok', lang('Lgc.ptPrefsSaved', [], $data['locale']));
+    }
+
+    /** GET — revisar el documento y firmarlo. POST — firmar o rechazar. */
+    public function signature($id = null)
+    {
+        $account = $this->requireAccount();
+        if (!$account || $this->privacyPending) {
+            return redirect()->to(Portal::url());
+        }
+        $sig = $this->view->signature($account, (int) $id);
+        if (!$sig) {
+            return $this->response->setStatusCode(404)->setBody($this->page('invalid', ['title' => lang('Lgc.ptNotFound'), 'notFound' => true], $account));
+        }
+        $matter = $this->view->matter($account, (int) $sig['matter_id']);
+
+        if (strtolower($this->request->getMethod()) === 'post') {
+            $svc = new SignatureService();
+            $r   = $this->request->getPost('decision') === 'decline'
+                ? $svc->decline($account, $sig, (string) $this->request->getPost('decline_note'))
+                : $svc->sign($account, $sig, (string) $this->request->getPost('signer_name'), (string) $this->request->getPost('signer_doc'), $this->request->getPost('accept') === '1');
+
+            return redirect()->to($r->ok ? Portal::url('asunto/' . (int) $sig['matter_id']) . '#firmas' : Portal::url('firma/' . (int) $sig['id']))
+                ->with($r->ok ? 'lgc_ok' : 'lgc_err', $r->message);
+        }
+
+        return $this->page('sign', [
+            'title' => lang('Lgc.ptSignTitle'), 'sig' => $sig, 'matter' => $matter,
+            'doc'   => (new \Components\LegalCase\Models\DocumentModel())->find((int) $sig['document_id']),
+        ], $account);
     }
 }

@@ -32,7 +32,8 @@ $canDelete = (new \App\Models\UserModel())->hasPermission((int) session('user_id
             'emptyText' => lang('Lgc.noContacts'),
             'columns'   => [
                 ['key' => 'name', 'label' => lang('Lgc.fName'), 'sortable' => true,
-                    'render' => static fn ($r) => '<div class="font-semibold">' . esc($r['name']) . '</div>'
+                    'render' => static fn ($r) => '<div class="font-semibold">' . esc($r['name'])
+                        . (($r['legal_capacity'] ?? 'full') !== 'full' ? ' <span class="badge badge-warning">' . esc(lang('Lgc.cap_' . $r['legal_capacity'])) . '</span>' : '') . '</div>'
                         . '<div class="text-xs text-muted">' . esc(trim($r['doc_type'] . ' ' . $r['doc_number'])) . '</div>'],
                 ['key' => 'kind', 'label' => lang('Lgc.fKind'), 'sortable' => true,
                     'render' => static fn ($r) => '<span class="badge badge-light">' . esc(lang('Lgc.kind_' . $r['kind'])) . '</span>'],
@@ -51,6 +52,14 @@ $canDelete = (new \App\Models\UserModel())->hasPermission((int) session('user_id
                     $out .= '<a href="' . base_url('legalcase/contactos/editar/' . (int) $r['id']) . '" class="btn btn-secondary btn-sm" title="' . esc(lang('Lgc.edit'), 'attr') . '"><i class="icon icon-pencil"></i></a>';
                 }
                 if ($canDelete) {
+                    $out .= view('partials/delete_button', [
+                        'action'  => base_url('legalcase/contactos/anonimizar/' . (int) $r['id']),
+                        'confirm' => lang('Lgc.confirmAnonymize'),
+                        'label'   => lang('Lgc.anonymize'),
+                        'class'   => 'btn btn-ghost btn-sm',
+                        'icon'    => 'eye-slash',
+                        'text'    => '',
+                    ]);
                     $out .= view('partials/delete_button', [
                         'action'  => base_url('legalcase/contactos/eliminar/' . (int) $r['id']),
                         'confirm' => lang('Lgc.confirmDeleteContact'),

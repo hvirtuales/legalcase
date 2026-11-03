@@ -81,7 +81,7 @@ $canShare = ($canWork && $acc->can('lgc.share'));
                                     <?php endif; ?>
                                 <?php else: ?>
                                     <span class="text-xs text-muted"><?= lang('Lgc.portalOff') ?></span>
-                                    <?php if ($p['role'] === 'representative' && !\Components\LegalCase\Libraries\Portal::authorityValid($p)): ?>
+                                    <?php if (in_array($p['role'], ParticipantModel::AUTHORITY_ROLES, true) && !\Components\LegalCase\Libraries\Portal::authorityValid($p)): ?>
                                         <span class="badge badge-warning"><?= lang('Lgc.authorityMissing') ?></span>
                                     <?php elseif ($canShare): ?>
                                         <form method="post" action="<?= base_url('legalcase/asuntos/portal/' . $id . '/' . (int) $p['id']) ?>" class="ml-auto"
@@ -92,7 +92,7 @@ $canShare = ($canWork && $acc->can('lgc.share'));
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
-                        <?php if ($p['role'] === 'representative'): ?>
+                        <?php if (in_array($p['role'], ParticipantModel::AUTHORITY_ROLES, true)): ?>
                             <details class="mt-2 rounded-md border border-line p-2" <?= \Components\LegalCase\Libraries\Portal::authorityValid($p) ? '' : 'open' ?>>
                                 <summary class="cursor-pointer text-xs font-semibold"><i class="icon icon-file-earmark"></i> <?= lang('Lgc.authorityTitle') ?>
                                     <?= $p['authority_until'] ? '· ' . lang('Lgc.authorityUntil', [esc($p['authority_until'])]) : '' ?></summary>

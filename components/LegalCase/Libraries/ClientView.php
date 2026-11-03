@@ -4,6 +4,8 @@ namespace Components\LegalCase\Libraries;
 
 use Components\LegalCase\Models\DocRequestModel;
 use Components\LegalCase\Models\DocumentModel;
+use Components\LegalCase\Models\HearingModel;
+use Components\LegalCase\Models\SignatureModel;
 use Components\LegalCase\Models\MatterModel;
 use Components\LegalCase\Models\MessageModel;
 use Components\LegalCase\Models\ThreadModel;
@@ -28,7 +30,8 @@ class ClientView
     private function matterIds(array $account): array
     {
         $rows = db_connect()->table('cmp_lgc_participants p')
-            ->select('p.matter_id, p.role, p.authority_document_id, p.authority_until')
+            ->select('p.matter_id, p.role, p.authority_document_id, p.authority_until, c.legal_capacity')
+            ->join('cmp_lgc_contacts c', 'c.id = p.contact_id')
             ->join('cmp_lgc_matters m', 'm.id = p.matter_id')
             ->where('p.company_id', (int) $account['company_id'])
             ->where('m.company_id', (int) $account['company_id'])
@@ -38,7 +41,7 @@ class ClientView
             ->get()->getResultArray();
 
         // Un representante con el poder vencido o sin acreditar deja de ver el asunto.
-        $rows = array_filter($rows, static fn ($r) => Portal::authorityValid($r));
+        $rows = array_filter($rows, static fn ($r) => Portal::authorityValid($r) && ($r['legal_capacity'] ?? 'full') === 'full');
 
         return array_values(array_unique(array_map('intval', array_column($rows, 'matter_id'))));
     }
@@ -100,7 +103,15 @@ class ClientView
         return [
             'updates'  => (new UpdateModel())->publishedFor($mid),
             'requests' => $this->requestsQuery($account, $mid)->where('status !=', 'cancelled')->orderBy('created_at', 'DESC')->findAll(100),
-            'docs'     => (new DocumentModel())->where('matter_id', $mid)->where('classification', 'shared')->orderBy('created_at', 'DESC')->findAll(200),
+            'docs'     => (new DocumentModel())->where('matter_id', $mid)->where('classification', 'shared')->where('is_current', 1)->orderBy('created_at', 'DESC')->findAll(200),
+            'hearings' => array_map(
+                // Lista blanca: nunca las notas internas; el enlace solo si es https.
+                static fn ($h) => array_intersect_key($h, array_flip(['id', 'title', 'scheduled_at', 'mode', 'location', 'client_attendance', 'client_notes', 'status']))
+                    + ['link' => preg_match('#^https://#i', (string) $h['link']) ? (string) $h['link'] : ''],
+                (new HearingModel())->where('matter_id', $mid)->where('is_shared', 1)->whereIn('status', ['scheduled', 'postponed'])
+                    ->where('scheduled_at >=', date('Y-m-d H:i:s', strtotime('-1 day')))->orderBy('scheduled_at', 'ASC')->findAll(20)
+            ),
+            'signatures' => (new SignatureModel())->where('matter_id', $mid)->where('account_id', (int) $account['id'])->orderBy('id', 'DESC')->findAll(50),
             'mine'     => (new DocumentModel())->where('matter_id', $mid)->where('source', 'client')
                 ->where('uploaded_by_account', (int) $account['id'])->orderBy('created_at', 'DESC')->findAll(200),
             'threads'  => $threads,
@@ -151,7 +162,18 @@ class ClientView
         }
         $own = $doc['source'] === 'client' && (int) $doc['uploaded_by_account'] === (int) $account['id'];
 
-        return ($doc['classification'] === 'shared' || $own) ? $doc : null;
+        // Un documento con firma pendiente para esta cuenta se puede leer aunque se haya reclasificado.
+        $toSign = (new SignatureModel())->where('document_id', (int) $doc['id'])->where('account_id', (int) $account['id'])->countAllResults() > 0;
+
+        return ($doc['classification'] === 'shared' || $own || $toSign) ? $doc : null;
+    }
+
+    /** Solicitud de firma de ESTA cuenta, o null. */
+    public function signature(array $account, int $sigId): ?array
+    {
+        $s = (new SignatureModel())->where('company_id', (int) $account['company_id'])->where('account_id', (int) $account['id'])->find($sigId);
+
+        return $s && $this->matter($account, (int) $s['matter_id']) ? $s : null;
     }
 
     /** Solicitud abierta de un asunto al que la cuenta tiene acceso. */

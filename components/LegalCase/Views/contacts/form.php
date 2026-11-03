@@ -44,6 +44,14 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
                 </fieldset>
 
                 <fieldset class="form-section">
+                    <legend class="form-section-title"><?= lang('Lgc.secCapacity') ?></legend>
+                    <p class="form-section-hint"><?= lang('Lgc.secCapacityHint') ?></p>
+                    <select id="legal_capacity" name="legal_capacity" class="form-select" aria-label="<?= esc(lang('Lgc.secCapacity'), 'attr') ?>">
+                        <?php foreach (ContactModel::CAPACITIES as $c): ?><option value="<?= $c ?>" <?= $v('legal_capacity', 'full') === $c ? 'selected' : '' ?>><?= lang('Lgc.cap_' . $c) ?></option><?php endforeach; ?>
+                    </select>
+                </fieldset>
+
+                <fieldset class="form-section">
                     <legend class="form-section-title"><?= lang('Lgc.secIdentity') ?></legend>
                     <p class="form-section-hint"><?= lang('Lgc.secIdentityHint') ?></p>
                     <div class="grid gap-4 md:grid-cols-3">
@@ -140,7 +148,10 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
                     <textarea id="notes" name="notes" rows="3" class="form-textarea"><?= esc($v('notes')) ?></textarea>
                 </fieldset>
 
-                <div class="mt-4 flex justify-end gap-2">
+                <div class="mt-4 flex flex-wrap justify-end gap-2">
+                    <?php if (!empty($row['id'])): ?>
+                        <a href="<?= base_url('legalcase/contactos/datos/' . (int) $row['id']) ?>" class="btn btn-ghost"><i class="icon icon-download"></i> <?= lang('Lgc.exportData') ?></a>
+                    <?php endif; ?>
                     <a href="<?= base_url('legalcase/contactos') ?>" class="btn btn-ghost"><?= lang('Lgc.cancel') ?></a>
                     <button type="submit" class="btn btn-primary"><i class="icon icon-save"></i> <?= lang('Lgc.save') ?></button>
                 </div>

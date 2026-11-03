@@ -27,6 +27,9 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->match(['GET', 'POST'], 'contactos/nuevo', 'Contacts::create', ['filter' => 'permission:lgc.create']);
     $routes->match(['GET', 'POST'], 'contactos/editar/(:num)', 'Contacts::edit/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('contactos/eliminar/(:num)', 'Contacts::delete/$1', ['filter' => 'permission:lgc.delete']);
+    // Derechos del titular: copia de sus datos y supresión (si no hay deber de conservar).
+    $routes->get('contactos/datos/(:num)', 'Contacts::exportData/$1', ['filter' => 'permission:lgc.edit']);
+    $routes->post('contactos/anonimizar/(:num)', 'Contacts::anonymize/$1', ['filter' => 'permission:lgc.delete']);
 
     // Asuntos
     $routes->get('asuntos', 'Matters::index', ['filter' => 'permission:lgc.view']);
@@ -60,6 +63,9 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->post('plazos/estado/(:num)', 'Work::deadlineStatus/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('asuntos/tarea/(:num)', 'Work::saveTask/$1', ['filter' => 'permission:lgc.create']);
     $routes->post('tareas/estado/(:num)', 'Work::taskStatus/$1', ['filter' => 'permission:lgc.edit']);
+    $routes->post('asuntos/audiencia/(:num)', 'Work::saveHearing/$1', ['filter' => 'permission:lgc.create']);
+    $routes->post('audiencias/editar/(:num)', 'Work::updateHearing/$1', ['filter' => 'permission:lgc.edit']);
+    $routes->post('audiencias/estado/(:num)', 'Work::hearingStatus/$1', ['filter' => 'permission:lgc.edit']);
 
     // Documentos y solicitudes al cliente
     $routes->post('asuntos/documento/(:num)', 'Documents::upload/$1', ['filter' => 'permission:lgc.create']);
@@ -68,6 +74,15 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->post('documentos/eliminar/(:num)', 'Documents::delete/$1', ['filter' => 'permission:lgc.delete']);
     $routes->post('asuntos/solicitud/(:num)', 'Documents::request/$1', ['filter' => 'permission:lgc.create']);
     $routes->post('solicitudes/revisar/(:num)', 'Documents::review/$1', ['filter' => 'permission:lgc.edit']);
+    $routes->post('documentos/version/(:num)', 'Documents::version/$1', ['filter' => 'permission:lgc.create']);
+    $routes->post('documentos/firma/(:num)', 'Documents::requestSignature/$1', ['filter' => 'permission:lgc.share']);
+    $routes->post('firmas/anular/(:num)', 'Documents::cancelSignature/$1', ['filter' => 'permission:lgc.share']);
+    $routes->get('firmas/evidencia/(:num)', 'Documents::evidence/$1', ['filter' => 'permission:lgc.view']);
+
+    // Contrato de servicios del asunto
+    $routes->match(['GET', 'POST'], 'asuntos/contrato/(:num)', 'Engagements::edit/$1', ['filter' => 'permission:lgc.edit']);
+    $routes->post('asuntos/contrato/firma/(:num)', 'Engagements::sign/$1', ['filter' => 'permission:lgc.share']);
+    $routes->post('asuntos/contrato/terminar/(:num)', 'Engagements::terminate/$1', ['filter' => 'permission:lgc.edit']);
 
     // Comunicación: plan y actualizaciones al cliente
     $routes->post('asuntos/plan/(:num)', 'Updates::plan/$1', ['filter' => 'permission:lgc.edit']);
@@ -96,6 +111,8 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->post('configuracion/soporte', 'Settings::grantSupport', ['filter' => 'permission:lgc.configure']);
     $routes->post('configuracion/soporte/revocar/(:num)', 'Settings::revokeSupport/$1', ['filter' => 'permission:lgc.configure']);
     $routes->post('configuracion/reasignar', 'Settings::reassign', ['filter' => 'permission:lgc.configure']);
+    $routes->post('configuracion/calendario', 'Settings::addDay', ['filter' => 'permission:lgc.configure']);
+    $routes->post('configuracion/calendario/quitar/(:num)', 'Settings::removeDay/$1', ['filter' => 'permission:lgc.configure']);
 });
 
 $routes->group('legalcase-portal', ['namespace' => 'Components\LegalCase\Controllers'], static function ($routes) {
@@ -111,4 +128,5 @@ $routes->group('legalcase-portal', ['namespace' => 'Components\LegalCase\Control
     $routes->post('preferencias', 'ClientPortal::preferences');
     $routes->post('privacidad', 'ClientPortal::privacy');
     $routes->post('datos', 'ClientPortal::dataRights');
+    $routes->match(['GET', 'POST'], 'firma/(:num)', 'ClientPortal::signature/$1');
 });

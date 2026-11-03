@@ -99,6 +99,45 @@ class DocumentService
         return Result::ok(lang('Lgc.okDocument'), $id);
     }
 
+    /**
+     * Nueva versión de un documento: la anterior se conserva (evidencia) y deja de ser la vigente.
+     * Hereda la clasificación; si la anterior estaba compartida, la nueva también lo está y el
+     * cliente ve solo la vigente. Una firma pedida sobre la versión anterior ya no procede.
+     */
+    public function newVersion(array $doc, UploadedFile $file, Access $acc): Result
+    {
+        if ((int) ($doc['is_current'] ?? 1) !== 1) {
+            return Result::fail(lang('Lgc.errNotCurrent'));
+        }
+        $r = $this->store($file, (int) $doc['company_id'], (int) $doc['matter_id'], [
+            'source' => 'staff', 'classification' => $doc['classification'], 'user_id' => $acc->userId ?: null,
+        ]);
+        if (!$r->ok) {
+            return $r;
+        }
+        $model = new DocumentModel();
+        $model->update($r->id, ['version' => (int) ($doc['version'] ?? 1) + 1, 'previous_id' => (int) $doc['id'], 'is_current' => 1, 'name' => $doc['name']]);
+        $model->update((int) $doc['id'], ['is_current' => 0]);
+        db_connect()->table('cmp_lgc_signatures')->where('document_id', (int) $doc['id'])->where('status', 'pending')->update(['status' => 'cancelled']);
+        Audit::log($acc->companyId, (int) $doc['matter_id'], 'document.versioned', 'document', $r->id, ['previous' => (int) $doc['id'], 'version' => (int) ($doc['version'] ?? 1) + 1]);
+
+        return Result::ok(lang('Lgc.okVersion', [(int) ($doc['version'] ?? 1) + 1]), $r->id);
+    }
+
+    /** Historia de versiones de un documento (de la más reciente a la original). */
+    public function history(array $doc): array
+    {
+        $out  = [];
+        $seen = 0;
+        $cur  = $doc;
+        while ($cur && $seen++ < 50) {
+            $out[] = $cur;
+            $cur   = $cur['previous_id'] ? (new DocumentModel())->withDeleted()->find((int) $cur['previous_id']) : null;
+        }
+
+        return $out;
+    }
+
     public function classify(array $doc, string $class, Access $acc, bool $confirmPrivileged = false): Result
     {
         if (!in_array($class, DocumentModel::CLASSIFICATIONS, true)) {

@@ -25,7 +25,7 @@ class Clock
     /** @return array{update_due:int,deadline_alerts:int,sent:int,failed:int,skipped:int,tokens:int} */
     public function run(?int $companyId = null): array
     {
-        $out = ['update_due' => $this->dueUpdates($companyId), 'deadline_alerts' => $this->deadlineAlerts($companyId)];
+        $out = ['update_due' => $this->dueUpdates($companyId), 'deadline_alerts' => $this->deadlineAlerts($companyId) + $this->hearingAlerts($companyId)];
         $out += $this->outbox->dispatch(50, $companyId);
 
         $db = db_connect();
@@ -109,6 +109,28 @@ class Clock
         }
 
         return $sent;
+    }
+
+    /** Aviso al responsable de cada audiencia programada para las próximas 36 horas (una vez). */
+    public function hearingAlerts(?int $companyId = null): int
+    {
+        $q = db_connect()->table('cmp_lgc_hearings h')
+            ->select('h.id, h.company_id, h.matter_id, m.lead_lawyer_id')
+            ->join('cmp_lgc_matters m', 'm.id = h.matter_id')
+            ->where('h.status', 'scheduled')->where('h.deleted_at', null)->where('m.deleted_at', null)
+            ->where('h.scheduled_at >=', date('Y-m-d H:i:s'))
+            ->where('h.scheduled_at <=', date('Y-m-d H:i:s', strtotime('+36 hours')));
+        if ($companyId) {
+            $q->where('h.company_id', $companyId);
+        }
+        $n = 0;
+        foreach ($q->get()->getResultArray() as $h) {
+            if ($this->outbox->notifyStaff((int) $h['company_id'], (int) $h['matter_id'], (int) $h['lead_lawyer_id'] ?: null, 'hearing', 'hearing', (int) $h['id'], 'd1')) {
+                $n++;
+            }
+        }
+
+        return $n;
     }
 
     /** Asuntos con la comunicación comprometida vencida (§6.12 HC-C09). */

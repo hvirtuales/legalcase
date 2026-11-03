@@ -95,7 +95,7 @@ class MessageService
             $kind    = in_array($kind, ThreadModel::KINDS, true) ? $kind : 'general';
             $subject = trim($subject) !== '' ? mb_substr(trim($subject), 0, 190) : lang('Lgc.threadDefaultSubject');
             $due     = $kind === 'data_rights'
-                ? self::addBusinessDays(self::DATA_RIGHTS[$this->rightOf($subject)] ?? 10)
+                ? (new Calendar($companyId))->addBusinessDays(date('Y-m-d'), self::DATA_RIGHTS[$this->rightOf($subject)] ?? 10) . ' 23:59:00'
                 : date('Y-m-d H:i:s', time() + $this->slaHours($companyId, (int) $matter['id']) * 3600);
             $threads->insert([
                 'company_id'            => $companyId,

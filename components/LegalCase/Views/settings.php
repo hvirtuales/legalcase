@@ -40,6 +40,17 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
                 </fieldset>
 
                 <fieldset class="form-section">
+                    <legend class="form-section-title"><?= lang('Lgc.secCalendar') ?></legend>
+                    <p class="form-section-hint"><?= lang('Lgc.secCalendarHint') ?></p>
+                    <?php foreach (['judicial', 'common'] as $m): ?>
+                        <div class="form-check">
+                            <input type="radio" id="cm-<?= $m ?>" name="calendar_mode" value="<?= $m ?>" class="form-check-input" <?= $v('calendar_mode', 'judicial') === $m ? 'checked' : '' ?>>
+                            <label for="cm-<?= $m ?>" class="form-check-label"><?= lang('Lgc.calmode_' . $m) ?><span class="block text-xs text-muted"><?= lang('Lgc.calmode_' . $m . 'Hint') ?></span></label>
+                        </div>
+                    <?php endforeach; ?>
+                </fieldset>
+
+                <fieldset class="form-section">
                     <legend class="form-section-title"><?= lang('Lgc.secDefaults') ?></legend>
                     <p class="form-section-hint"><?= lang('Lgc.secDefaultsHint') ?></p>
                     <div class="grid gap-4 sm:grid-cols-2">
@@ -107,6 +118,47 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
     </div>
 </div>
 <div class="mx-auto mt-4 grid max-w-3xl gap-4">
+    <div class="card" id="calendario">
+        <div class="card-header"><i class="icon icon-clock"></i><h5 class="font-semibold"><?= lang('Lgc.calendarTitle') ?></h5></div>
+        <div class="card-body">
+            <p class="mb-3 text-sm text-muted"><?= lang('Lgc.calendarHint') ?></p>
+            <form method="post" action="<?= base_url('legalcase/configuracion/calendario') ?>" class="grid gap-3 md:grid-cols-3">
+                <?= csrf_field() ?>
+                <div class="form-group">
+                    <label for="cd-day" class="form-label"><?= lang('Lgc.fDate') ?></label>
+                    <input id="cd-day" type="date" name="day" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="cd-kind" class="form-label"><?= lang('Lgc.fKind') ?></label>
+                    <select id="cd-kind" name="kind" class="form-select">
+                        <?php foreach (\Components\LegalCase\Models\CalendarDayModel::KINDS as $k): ?><option value="<?= $k ?>"><?= lang('Lgc.dayk_' . $k) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="cd-name" class="form-label"><?= lang('Lgc.fReason') ?></label>
+                    <input id="cd-name" type="text" name="name" class="form-input" required maxlength="120" placeholder="<?= esc(lang('Lgc.phDayReason'), 'attr') ?>">
+                </div>
+                <div class="md:col-span-3"><button type="submit" class="btn btn-secondary btn-sm"><i class="icon icon-plus-circle"></i> <?= lang('Lgc.add') ?></button></div>
+            </form>
+            <?php if ($days): ?>
+                <ul class="mt-3 divide-y divide-line text-sm">
+                    <?php foreach ($days as $d): ?>
+                        <li class="flex items-center justify-between gap-2 py-2">
+                            <span><span class="font-mono"><?= esc($d['day']) ?></span> · <?= esc($d['name']) ?> <span class="badge badge-light"><?= lang('Lgc.dayk_' . $d['kind']) ?></span></span>
+                            <?= view('partials/delete_button', ['action' => base_url('legalcase/configuracion/calendario/quitar/' . (int) $d['id']), 'confirm' => lang('Lgc.confirmDelete'), 'label' => lang('Lgc.remove'), 'class' => 'btn btn-ghost btn-sm', 'icon' => 'x', 'text' => '']) ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+            <details class="mt-3 text-sm">
+                <summary class="cursor-pointer text-muted"><?= lang('Lgc.nationalHolidays') ?></summary>
+                <ul class="mt-2 grid gap-1 md:grid-cols-2">
+                    <?php foreach ($national as $d => $n): ?><li class="text-xs"><span class="font-mono"><?= esc($d) ?></span> · <?= esc($n) ?></li><?php endforeach; ?>
+                </ul>
+            </details>
+        </div>
+    </div>
+
     <div class="card" id="soporte">
         <div class="card-header"><i class="icon icon-life-preserver"></i><h5 class="font-semibold"><?= lang('Lgc.supportTitle') ?></h5></div>
         <div class="card-body">

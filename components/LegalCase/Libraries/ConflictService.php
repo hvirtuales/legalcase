@@ -24,7 +24,7 @@ use Components\LegalCase\Models\ContactModel;
  */
 class ConflictService
 {
-    public const CLIENT_SIDE  = ['client', 'representative', 'payer'];
+    public const CLIENT_SIDE  = ['client', 'representative', 'guardian', 'payer'];
     public const ADVERSE_SIDE = ['counterparty', 'counsel'];
 
     private const SUFFIXES = ['sas', 's a s', 'sa', 's a', 'ltda', 'limitada', 'sca', 'sc', 'eu', 'e u', 'inc', 'llc', 'corp', 'corporation', 'co', 'ltd', 'plc'];

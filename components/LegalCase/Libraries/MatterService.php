@@ -370,7 +370,16 @@ class MatterService
             return $gate;
         }
 
-        return $this->insertParticipant($matter, $contactId, $role, $acc, $notes);
+        $result = $this->insertParticipant($matter, $contactId, $role, $acc, $notes);
+
+        // Menores o personas con capacidad restringida: el asunto pasa a sensible y restringido al equipo.
+        $contact = (new ContactModel())->own($acc->companyId, $contactId);
+        if (($contact['legal_capacity'] ?? 'full') !== 'full' && ($matter['sensitivity'] !== 'high' || $matter['visibility'] !== 'team')) {
+            (new MatterModel())->update((int) $matter['id'], ['sensitivity' => 'high', 'visibility' => 'team']);
+            Audit::log($acc->companyId, (int) $matter['id'], 'matter.protected_person', 'contact', $contactId);
+        }
+
+        return $result;
     }
 
     private function insertParticipant(array $matter, int $contactId, string $role, Access $acc, string $notes = ''): Result
@@ -392,7 +401,7 @@ class MatterService
     {
         $model = new ParticipantModel();
         $row   = $model->where('matter_id', (int) $matter['id'])->find($rowId);
-        if (!$row || $row['role'] !== 'representative') {
+        if (!$row || !in_array($row['role'], ParticipantModel::AUTHORITY_ROLES, true)) {
             return Result::fail(lang('Lgc.errNotFound'));
         }
         $docId = (int) ($in['authority_document_id'] ?? 0);

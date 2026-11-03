@@ -96,13 +96,16 @@ class Dashboard extends BaseLgc
         }
         $deadlines = $d->orderBy('due_at', 'ASC')->findAll(300);
         $tasks     = $t->orderBy('due_at', 'ASC')->findAll(300);
+        $hearings  = (new \Components\LegalCase\Models\HearingModel())->whereIn('matter_id', $ids)->whereIn('status', ['scheduled', 'postponed'])
+            ->where('scheduled_at >=', date('Y-m-d 00:00:00'))->orderBy('scheduled_at', 'ASC')->findAll(100);
 
         return view('Components\LegalCase\Views\agenda', [
             'title'     => lang('Lgc.navAgenda'),
             'deadlines' => $deadlines,
             'tasks'     => $tasks,
+            'hearings'  => $hearings,
             'mine'      => $mine,
-            'numbers'   => $this->numbers(array_merge($deadlines, $tasks)),
+            'numbers'   => $this->numbers(array_merge($deadlines, $tasks, $hearings)),
             'users'     => Team::users($this->companyId()),
         ]);
     }

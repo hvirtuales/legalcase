@@ -4,7 +4,9 @@ namespace Components\LegalCase\Controllers;
 
 use Components\LegalCase\Libraries\Audit;
 use Components\LegalCase\Libraries\DeadlineService;
+use Components\LegalCase\Libraries\HearingService;
 use Components\LegalCase\Models\DeadlineModel;
+use Components\LegalCase\Models\HearingModel;
 use Components\LegalCase\Models\EventModel;
 use Components\LegalCase\Models\ProceedingModel;
 use Components\LegalCase\Models\TaskModel;
@@ -136,5 +138,40 @@ class Work extends BaseLgc
         $back = (string) $this->post('return_to') === 'agenda' ? 'legalcase/agenda' : $this->matterUrl($matter, 'plazos');
 
         return $this->done($this->svc->setTaskStatus($row, (string) $this->post('status'), $this->acc()), $back);
+    }
+
+    // ------------------------------------------------------------------ audiencias
+
+    public function saveHearing($matterId = null)
+    {
+        $matter = $this->findMatter($matterId);
+        if (!$matter) {
+            return $this->notFound();
+        }
+        if ($stop = $this->closedGuard($matter)) {
+            return $stop;
+        }
+
+        return $this->done((new HearingService())->save($matter, $this->request->getPost(), $this->acc()), $this->matterUrl($matter, 'plazos'));
+    }
+
+    public function updateHearing($id = null)
+    {
+        [$row, $matter] = $this->findChild(HearingModel::class, $id);
+        if (!$row) {
+            return $this->notFound();
+        }
+
+        return $this->done((new HearingService())->save($matter, $this->request->getPost(), $this->acc(), $row), $this->matterUrl($matter, 'plazos'));
+    }
+
+    public function hearingStatus($id = null)
+    {
+        [$row, $matter] = $this->findChild(HearingModel::class, $id);
+        if (!$row) {
+            return $this->notFound();
+        }
+
+        return $this->done((new HearingService())->setStatus($matter, $row, (string) $this->post('status'), $this->acc()), $this->matterUrl($matter, 'plazos'));
     }
 }

@@ -50,6 +50,39 @@ ob_start(); ?>
   </div>
 </div>
 
+<?php if (!empty($hearings)): ?>
+<div class="lc-card" id="audiencias">
+  <h2><?= lgc_icon('clock') ?> <?= esc(lang('Lgc.ptHearings')) ?></h2>
+  <ul class="lc-list">
+    <?php foreach ($hearings as $h): ?>
+      <li>
+        <div class="lc-row"><strong><?= esc($h['title']) ?></strong><span class="lc-pill"><?= esc(lang('Lgc.hmode_' . $h['mode'])) ?></span></div>
+        <p style="margin:4px 0 0"><?= esc($d($h['scheduled_at'], true)) ?><?= $h['status'] === 'postponed' ? ' · ' . esc(lang('Lgc.hstatus_postponed')) : '' ?></p>
+        <?php if ($h['location']): ?><p class="lc-muted lc-small" style="margin:2px 0 0"><?= esc($h['location']) ?></p><?php endif; ?>
+        <?php if ($h['link']): ?><p style="margin:6px 0 0"><a class="lc-btn lc-btn-ghost" href="<?= esc($h['link'], 'attr') ?>" target="_blank" rel="noopener noreferrer"><?= esc(lang('Lgc.ptJoin')) ?></a></p><?php endif; ?>
+        <?php if ((int) $h['client_attendance']): ?><p class="lc-alert lc-warn lc-small" style="margin:8px 0 0"><?= esc(lang('Lgc.ptMustAttend')) ?></p><?php endif; ?>
+        <?php if ($h['client_notes']): ?><p class="lc-pre lc-small" style="margin-top:6px"><?= esc($h['client_notes']) ?></p><?php endif; ?>
+      </li>
+    <?php endforeach; ?>
+  </ul>
+  <p class="lc-muted lc-small"><?= esc(lang('Lgc.ptHearingNote')) ?></p>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($signatures)): ?>
+<div class="lc-card" id="firmas">
+  <h2><?= lgc_icon('doc') ?> <?= esc(lang('Lgc.ptToSign')) ?></h2>
+  <ul class="lc-list">
+    <?php foreach ($signatures as $sg): ?>
+      <li class="lc-row">
+        <span><?= esc($sg['purpose']) ?> <span class="lc-pill"><?= esc(lang('Lgc.sig_' . $sg['status'])) ?></span></span>
+        <?php if ($sg['status'] === 'pending'): ?><a class="lc-btn" href="<?= esc(Portal::url('firma/' . (int) $sg['id']), 'attr') ?>"><?= esc(lang('Lgc.ptReviewSign')) ?></a><?php endif; ?>
+      </li>
+    <?php endforeach; ?>
+  </ul>
+</div>
+<?php endif; ?>
+
 <div class="lc-card" id="pendientes">
   <h2><?= lgc_icon('doc') ?> <?= esc(lang('Lgc.ptWhatWeNeed')) ?></h2>
   <?php $pend = array_filter($requests, static fn ($r) => in_array($r['status'], ['pending', 'rejected', 'submitted'], true)); ?>
