@@ -1,0 +1,14 @@
+# Redirect to public folder
+RewriteEngine On
+
+# 1) No reescribir el challenge de Let's Encrypt
+RewriteRule ^\.well-known/acme-challenge/ - [L]
+
+# 2) (opcional) permitir .well-known completo
+RewriteRule ^\.well-known/ - [L]
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^$ public/ [L]
+    RewriteRule (.*) public/$1 [L]
+</IfModule>

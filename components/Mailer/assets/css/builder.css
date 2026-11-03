@@ -1,0 +1,272 @@
+/*
+ * Asistente de campaña y constructor de correos.
+ *
+ * Mismo lenguaje visual que el creador de formularios —elementos a la izquierda,
+ * lienzo en medio, propiedades a la derecha— y, como aquel, **a pantalla
+ * completa**: con la barra lateral del panel las tres columnas dejaban para el
+ * correo una tira demasiado estrecha para juzgar una maquetación. El lienzo lo
+ * pone `Views/_builder_layout.php`; aquí van sus medidas.
+ */
+
+/* ------------------------------------------------------ pantalla completa */
+body.ml-fs {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+.ml-shell { display: flex; flex-direction: column; height: 100vh; }
+
+/* La barra superior: salida, título, pasos y las acciones de guardar. */
+.ml-bar {
+  display: flex; align-items: center; gap: .75rem; flex: none;
+  padding: .5rem .75rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
+}
+.ml-bar-title { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.ml-bar-title strong {
+  font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 26ch;
+}
+.ml-bar-actions { display: flex; align-items: center; gap: .35rem; flex: none; margin-left: auto; }
+
+/* Los pasos 1 y 3 son formularios normales: una columna centrada que se
+   desplaza dentro del armazón, sin robarle el alto a nada. */
+.ml-main { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem 1rem 2.5rem; }
+.ml-wrap { max-width: 64rem; margin: 0 auto; }
+.ml-wrap-narrow { max-width: 40rem; margin: 0 auto; }
+
+/* El aviso de guardado, flotando sobre el lienzo (no hay panel que lo aloje). */
+.ml-flash {
+  position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%);
+  z-index: 60; display: flex; align-items: center; gap: .5rem;
+  padding: .6rem .9rem; border-radius: .6rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  transition: opacity .3s, transform .3s;
+}
+.ml-flash.is-gone { opacity: 0; transform: translate(-50%, .5rem); }
+
+/* --------------------------------------------------- pasos del asistente */
+
+.ml-wiz {
+  display: flex; gap: .5rem; list-style: none; margin: 0 0 1.25rem; padding: 0;
+  flex-wrap: wrap;
+}
+.ml-wiz-step { flex: 1 1 200px; }
+.ml-wiz-step > a, .ml-wiz-step > span {
+  display: flex; align-items: center; gap: .6rem; padding: .7rem .9rem;
+  border: 1px solid var(--color-line); border-radius: .75rem;
+  background: var(--color-surface); color: var(--color-muted);
+  text-decoration: none; height: 100%;
+}
+.ml-wiz-step > a:hover { border-color: var(--color-primary); }
+.ml-wiz-n {
+  flex: none; width: 1.75rem; height: 1.75rem; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .8rem;
+  background: var(--color-line); color: var(--color-muted);
+}
+.ml-wiz-t { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.ml-wiz-t strong { font-size: .9rem; }
+.ml-wiz-t small { font-size: .72rem; }
+.ml-wiz-step.is-now > a, .ml-wiz-step.is-now > span {
+  border-color: var(--color-primary); color: var(--color-ink);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+.ml-wiz-step.is-now .ml-wiz-n { background: var(--color-primary); color: #fff; }
+.ml-wiz-step.is-done > a { color: var(--color-ink); }
+.ml-wiz-step.is-done .ml-wiz-n { background: var(--color-success, #16a34a); color: #fff; }
+
+/* En la barra superior los pasos van compactos: sin subtítulo, sin envolver y
+   sin recuadro, que ahí el alto es de 2 rem y no de 4. */
+.ml-wiz.is-compact { margin: 0; gap: .25rem; flex-wrap: nowrap; min-width: 0; overflow: hidden; }
+.ml-wiz.is-compact .ml-wiz-step { flex: 0 1 auto; }
+.ml-wiz.is-compact .ml-wiz-step > a,
+.ml-wiz.is-compact .ml-wiz-step > span {
+  padding: .25rem .5rem; border-radius: .5rem; border-color: transparent;
+  background: none; gap: .4rem; white-space: nowrap;
+}
+.ml-wiz.is-compact .ml-wiz-n { width: 1.35rem; height: 1.35rem; font-size: .7rem; }
+.ml-wiz.is-compact .ml-wiz-t small { display: none; }
+.ml-wiz.is-compact .ml-wiz-t strong { font-size: .8rem; }
+.ml-wiz.is-compact .ml-wiz-step.is-now > a,
+.ml-wiz.is-compact .ml-wiz-step.is-now > span {
+  background: var(--color-canvas); border-color: var(--color-line); box-shadow: none;
+}
+/* Por debajo de 900 px solo caben los números. */
+@media (max-width: 900px) { .ml-wiz.is-compact .ml-wiz-t { display: none; } }
+
+.ml-preview {
+  width: 100%; height: 620px; border: 1px solid var(--color-line);
+  border-radius: .5rem; background: #fff;
+}
+
+/* --------------------------------------------------------- el constructor */
+.ml-builder { flex: 1; min-height: 0; display: flex; }
+
+.ml-side {
+  width: 15rem; flex: none;
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--color-surface);
+}
+.ml-left { width: 19rem; border-right: 1px solid var(--color-line); }
+.ml-right { width: 19rem; border-left: 1px solid var(--color-line); }
+
+/* La columna del medio se desplaza sola: es la única que crece. */
+.ml-canvas {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  overflow-y: auto; padding: 1rem;
+}
+.ml-side-head {
+  padding: .5rem .75rem; font-size: .7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted);
+  border-bottom: 1px solid var(--color-line);
+}
+.ml-side-body { flex: 1; min-height: 0; padding: .6rem; overflow-y: auto; }
+
+/* La paleta: mismos chips que el creador de formularios. */
+/* Tope de 20 rem: ningún grupo pasa de tres elementos, así que una rejilla
+   más ancha —la del modo apilado, donde la columna ocupa toda la pantalla—
+   los dejaría de tres en tres con medio metro de hueco al lado. */
+.ml-palette {
+  display: grid; gap: .4rem; max-width: 20rem;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+}
+.ml-chip {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .3rem; min-height: 4.5rem;
+  padding: .6rem .3rem; text-align: center; cursor: grab;
+  background: var(--color-canvas); border: 1px solid var(--color-line);
+  border-radius: .6rem; font-size: .7rem; line-height: 1.25;
+  /* Un nombre largo parte por donde sea antes que desbordar la ficha. */
+  overflow-wrap: anywhere; hyphens: auto;
+}
+.ml-chip:hover { border-color: var(--color-primary); }
+.ml-chip i { font-size: 1.2rem; color: var(--color-primary); }
+.ml-group {
+  grid-column: 1 / -1; margin: .45rem 0 .1rem; font-size: .64rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted);
+}
+
+/* Los prearmados se distinguen del resto: no son un bloque, son una sección
+   entera que cae en su sitio. */
+.ml-chip.is-preset {
+  grid-column: 1 / -1; flex-direction: row; justify-content: flex-start;
+  gap: .5rem; min-height: 0; padding: .5rem .6rem; cursor: pointer; text-align: left;
+  border-style: dashed;
+}
+.ml-chip.is-preset:hover { border-style: solid; }
+
+/* Las dos caras del panel derecho: propiedades del bloque y ajustes del correo. */
+.ml-panel-tabs {
+  display: flex; gap: .25rem; flex: none;
+  padding: .4rem .5rem; border-bottom: 1px solid var(--color-line);
+}
+.ml-panel-tab {
+  flex: 1; padding: .3rem .5rem; font-size: .75rem; font-weight: 600;
+  background: none; border: 0; border-radius: .4rem; cursor: pointer;
+  color: var(--color-muted);
+}
+.ml-panel-tab.is-on { background: var(--color-primary); color: #fff; }
+.ml-pane[hidden] { display: none; }
+.ml-settings .form-label { font-size: .72rem; }
+.ml-settings .form-input { font-size: .82rem; }
+
+/* El lienzo: el correo a 600 px, como se va a ver. */
+.ml-canvas-bar {
+  position: sticky; top: -1rem; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  margin: -1rem -1rem .5rem; padding: .5rem 1rem;
+  background: var(--color-canvas); font-size: .75rem; color: var(--color-muted);
+}
+.ml-paper {
+  background: #f4f4f5; border: 1px solid var(--color-line); border-radius: .75rem;
+  padding: 1rem; min-height: 50vh;
+}
+.ml-section {
+  position: relative; background: #fff; border: 1px solid transparent;
+  border-radius: .4rem; margin: 0 auto .6rem; max-width: 600px;
+}
+.ml-section.is-on { border-color: var(--color-primary); }
+.ml-cols { display: flex; gap: .5rem; }
+.ml-col { flex: 1; min-width: 0; min-height: 60px; padding: .35rem; }
+.ml-col.is-over { background: color-mix(in srgb, var(--color-primary) 10%, transparent); }
+
+.ml-block {
+  position: relative; padding: .3rem; border: 1px solid transparent;
+  border-radius: .3rem; cursor: pointer;
+}
+.ml-block:hover { border-color: var(--color-line); }
+.ml-block.is-on { border-color: var(--color-primary); box-shadow: 0 0 0 1px var(--color-primary); }
+.ml-block.is-before { box-shadow: -3px 0 0 var(--color-primary); }
+.ml-block.is-after { box-shadow: 3px 0 0 var(--color-primary); }
+.ml-empty {
+  padding: 1.5rem .5rem; text-align: center; color: var(--color-muted);
+  border: 2px dashed var(--color-line); border-radius: .5rem; font-size: .78rem;
+}
+
+.ml-tools {
+  position: absolute; top: .15rem; right: .15rem; display: flex; gap: .05rem;
+  opacity: 0; background: var(--color-surface); border: 1px solid var(--color-line);
+  border-radius: .35rem; padding: .1rem;
+}
+.ml-block:hover .ml-tools, .ml-block.is-on .ml-tools { opacity: 1; }
+.ml-tools button, .ml-sec-tools button {
+  background: none; border: 0; cursor: pointer; padding: .15rem .25rem;
+  color: var(--color-muted); line-height: 1; font-size: .75rem;
+}
+.ml-tools button:hover, .ml-sec-tools button:hover { color: var(--color-ink); }
+.ml-tools .ml-del:hover, .ml-sec-tools .ml-del:hover { color: #dc2626; }
+.ml-sec-tools {
+  display: flex; align-items: center; gap: .1rem; justify-content: flex-end;
+  padding: .2rem .3rem; border-bottom: 1px solid var(--color-line);
+  font-size: .7rem; color: var(--color-muted);
+}
+.ml-sec-cols { display: flex; gap: .1rem; margin-right: auto; }
+.ml-sec-cols button {
+  font-size: .66rem; font-weight: 700; padding: .1rem .3rem; border-radius: .25rem;
+}
+.ml-sec-cols button.is-on { background: var(--color-primary); color: #fff; }
+
+/* Inspector */
+.ml-field { margin-bottom: .7rem; }
+.ml-field > label { display: block; font-size: .72rem; font-weight: 700; margin-bottom: .2rem; }
+.ml-field .ml-hint { font-size: .66rem; color: var(--color-muted); margin-top: .15rem; }
+.ml-field input[type=text], .ml-field input[type=number], .ml-field input[type=url],
+.ml-field select, .ml-field textarea {
+  width: 100%; padding: .35rem .5rem; font: inherit; font-size: .8rem;
+  color: var(--color-ink); background: var(--color-canvas);
+  border: 1px solid var(--color-line); border-radius: .45rem;
+}
+.ml-field textarea { min-height: 5rem; resize: vertical; }
+.ml-check { display: flex; align-items: center; gap: .4rem; font-size: .78rem; }
+.ml-aligns { display: flex; gap: .15rem; }
+.ml-aligns button {
+  flex: 1; padding: .25rem; font-size: .7rem; cursor: pointer;
+  background: var(--color-canvas); border: 1px solid var(--color-line); border-radius: .35rem;
+}
+.ml-aligns button.is-on { background: var(--color-primary); color: #fff; border-color: transparent; }
+.ml-tabs { display: flex; gap: .25rem; margin-bottom: .6rem; }
+.ml-tab {
+  flex: 1; padding: .3rem; font-size: .75rem; font-weight: 600; cursor: pointer;
+  background: none; border: 0; border-radius: .4rem; color: var(--color-muted);
+}
+.ml-tab.is-on { background: var(--color-primary); color: #fff; }
+.ml-none { padding: 1.5rem .5rem; text-align: center; color: var(--color-muted); font-size: .78rem; }
+
+/* ------------------------------------------------- pantallas estrechas */
+/* Apilado, las tres columnas no caben lado a lado y la página vuelve a
+   desplazarse entera: el alto fijo del armazón solo tiene sentido con las
+   columnas en fila. */
+@media (max-width: 1100px) {
+  body.ml-fs { height: auto; overflow: auto; }
+  .ml-shell { height: auto; min-height: 100vh; }
+  .ml-bar { flex-wrap: wrap; }
+  .ml-bar-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .ml-builder { flex-direction: column; }
+  .ml-side { width: auto; max-height: 22rem; border: 0; border-bottom: 1px solid var(--color-line); }
+  .ml-right { border-left: 0; border-top: 1px solid var(--color-line); border-bottom: 0; }
+  .ml-canvas { overflow: visible; }
+  .ml-canvas-bar { position: static; margin: 0 0 .5rem; padding: 0; }
+}

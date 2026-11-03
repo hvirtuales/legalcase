@@ -1,0 +1,30 @@
+# Secretos y configuración local
+.env
+.claude/settings.local.json
+
+# Dependencias de Composer (se instalan con `composer install`)
+vendor/
+composer.phar
+
+# Binario de Tailwind (131 MB, supera el límite de GitHub; se descarga aparte)
+bin/tailwindcss.exe
+
+# Estado de la instalación, cachés, logs, sesiones y archivos privados
+writable/*
+!writable/index.html
+!writable/.htaccess
+
+# Archivos subidos por los usuarios
+public/uploads/
+
+# Herramientas y artefactos
+.php-cs-fixer.cache
+.phpunit.result.cache
+pms.zip
+*.log
+
+# Sistema operativo / editores
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/

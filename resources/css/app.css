@@ -1,0 +1,344 @@
+@import "tailwindcss";
+
+/* ============================================================
+   FUENTES DE CONTENIDO (escaneo de clases)
+   ============================================================ */
+@source "../../app/Views";
+@source "../../public/js";
+@source "../../components";
+
+/* ============================================================
+   DARK MODE
+   El sistema aplica data-theme="dark" en <html> (theme-manager.js).
+   Definimos la variante dark de Tailwind sobre ese atributo, para
+   poder usar utilidades dark:* cuando haga falta un ajuste puntual.
+   (La mayoría del dark mode se resuelve solo: los tokens semánticos
+   de abajo cambian de valor bajo [data-theme="dark"].)
+   ============================================================ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ============================================================
+   DESIGN TOKENS  →  @theme genera las utilidades de Tailwind
+   ------------------------------------------------------------
+   - Marca: --color-primary* (mismos nombres que emite
+     ThemeController::customCss, para no romper el theming
+     dinámico por admin/usuario que sobre-escribe :root).
+   - Resto: nombres semánticos (surface, canvas, ink, muted, line…)
+     para un vocabulario Tailwind claro: bg-surface, text-ink, etc.
+   ============================================================ */
+@theme {
+    /* === MARCA (CTA, enlaces activos, foco) === */
+    --color-primary: #e10e30;
+    --color-primary-hover: #b90b26;
+    --color-primary-light: #fff1f2;
+    --color-primary-contrast: #ffffff;
+
+    /* === SUPERFICIES Y FONDOS === */
+    --color-canvas: #f3f4f6;        /* fondo general (body) — nunca blanco puro */
+    --color-surface: #ffffff;       /* tarjetas / contenedores */
+    --color-surface-muted: #f9fafb; /* hover sutil de superficie */
+
+    /* === TEXTO === */
+    --color-ink: #1e293b;           /* texto principal */
+    --color-muted: #64748b;         /* texto secundario */
+    --color-faint: #94a3b8;         /* texto tenue / placeholder */
+    --color-inverse: #ffffff;       /* texto sobre fondos oscuros */
+
+    /* === BORDES === */
+    --color-line: #e2e8f0;          /* borde claro (inputs, divisores) */
+    --color-line-strong: #cbd5e1;
+
+    /* === ESTADOS === */
+    --color-success: #10b981;
+    --color-success-soft: #d1fae5;
+    --color-warning: #f59e0b;
+    --color-warning-soft: #fef3c7;
+    --color-danger: #ef4444;
+    --color-danger-soft: #fee2e2;
+    --color-info: #3b82f6;
+    --color-info-soft: #dbeafe;
+
+    /* === TIPOGRAFÍA === */
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+    /* === RADIOS (Executive Clean) === */
+    --radius-sm: 8px;   /* botones, inputs */
+    --radius-md: 12px;
+    --radius-lg: 16px;  /* tarjetas */
+
+    /* === SOMBRAS === */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+    /* Anillo de foco derivado del primario (sin hex fijo: respeta el tema dinámico) */
+    --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+
+/* ============================================================
+   DARK MODE: re-mapeo de tokens semánticos.
+   Las utilidades (bg-surface, text-ink, border-line…) referencian
+   estas variables, así que el modo oscuro se resuelve sin tocar
+   el marcado. La marca (--color-primary) la mantiene el theming
+   dinámico, igual en claro y oscuro.
+   ============================================================ */
+@layer base {
+    [data-theme="dark"] {
+        --color-canvas: #0f172a;
+        --color-surface: #1e293b;
+        --color-surface-muted: #273449;
+        --color-ink: #f1f5f9;
+        --color-muted: #94a3b8;
+        --color-faint: #64748b;
+        --color-line: #334155;
+        --color-line-strong: #475569;
+    }
+
+    body {
+        font-family: var(--font-sans);
+        background-color: var(--color-canvas);
+        color: var(--color-ink);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+/* ============================================================
+   COMPONENTES REUTILIZABLES (estilo "Executive Clean")
+   Solo referencian tokens del @theme — sin hex hardcodeado.
+   Se usan en todas las vistas migradas para mantener uniformidad.
+   ============================================================ */
+@layer components {
+
+    /* --- Botones --- */
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-sm px-4 py-2
+               text-sm font-medium leading-none cursor-pointer
+               transition-colors duration-200 disabled:opacity-60 disabled:cursor-not-allowed;
+    }
+    .btn-primary {
+        @apply bg-primary text-primary-contrast shadow-sm transition-shadow
+               hover:bg-primary-hover hover:shadow-md;
+    }
+    .btn-secondary {
+        @apply bg-surface text-ink border border-line hover:bg-surface-muted;
+    }
+    .btn-danger {
+        @apply bg-danger text-white hover:brightness-95;
+    }
+    .btn-ghost {
+        @apply bg-transparent text-muted hover:text-primary hover:bg-primary-light;
+    }
+    .btn-success { @apply bg-success text-white hover:brightness-95; }
+    .btn-outline { @apply bg-transparent text-ink border border-line hover:bg-surface-muted; }
+    .btn-sm { @apply px-3 py-1.5 text-xs; }
+    .btn-block { @apply w-full; }
+
+    /* Grupo de botones contiguos (acciones de tabla) */
+    .btn-group { @apply inline-flex; }
+    .btn-group > .btn { @apply rounded-none border-r-0 first:rounded-l-sm last:rounded-r-sm last:border-r; }
+
+    /* --- Formularios --- */
+    .form-label {
+        @apply mb-1.5 inline-flex items-center gap-1 text-sm font-medium text-ink;
+    }
+    .form-input,
+    .form-select {
+        @apply block w-full rounded-sm border border-line bg-surface px-3 py-2
+               text-sm text-ink placeholder:text-faint
+               transition-colors duration-200
+               focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
+    }
+    .form-textarea {
+        @apply block w-full rounded-sm border border-line bg-surface px-3 py-2
+               text-sm text-ink placeholder:text-faint
+               transition-colors duration-200
+               focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
+    }
+    .form-hint  { @apply mt-1 text-xs text-muted; }
+    .form-group { @apply mb-4; }
+
+    /* Sección de formulario: agrupa campos relacionados con borde y título, para
+       que se vea de un vistazo qué se registra en cada bloque. Uso:
+       <fieldset class="form-section"><legend class="form-section-title">…</legend>
+         <p class="form-section-hint">para qué sirve</p> … </fieldset> */
+    .form-section {
+        @apply mb-5 min-w-0 rounded-lg border border-line bg-surface-muted/40 px-4 pb-2 pt-3;
+    }
+    .form-section-title {
+        @apply px-2 text-sm font-semibold text-ink;
+    }
+    .form-section-hint { @apply -mt-1 mb-3 text-xs text-muted; }
+
+    /* Carta de presentación de las cotizaciones (vista web).
+       El cuerpo lo escribe el editor enriquecido: sus etiquetas necesitan
+       medidas propias o el navegador las junta sin separación alguna. */
+    /* 14px, no los 16 que hereda del cuerpo: una carta se lee más compacta. */
+    .letter-web { @apply mx-auto max-w-3xl px-2 py-4 text-sm leading-relaxed sm:px-8 sm:py-8; }
+    .letter-body p { @apply mb-3 last:mb-0; }
+    .letter-body ul { @apply mb-3 list-disc space-y-1 pl-6; }
+    .letter-body ol { @apply mb-3 list-decimal space-y-1 pl-6; }
+    .letter-body h3 { @apply mb-2 mt-5 text-base font-semibold text-ink; }
+    .letter-body h4 { @apply mb-2 mt-4 text-sm font-semibold text-ink; }
+    .letter-body a  { @apply text-primary underline; }
+
+    /* --- Ayuda contextual (tooltip) --- */
+    /* Un «?» junto a la etiqueta de un campo que explica para qué sirve al pasar
+       por encima, al enfocarlo con el teclado o al tocarlo en el móvil. Existe
+       porque hay formularios con una casilla por servicio —el de planes tiene
+       una por componente— y un párrafo debajo de cada una lo convierte en un
+       muro de texto. Uso:
+         <div class="tip-anchor">
+           <label class="form-label">Servicio
+             <span class="tip">
+               <button class="tip-btn" type="button" aria-label="¿Qué es esto?">
+                 <i class="icon icon-info-circle"></i>
+               </button>
+               <span class="tip-body" role="tooltip">Qué incluye el servicio.</span>
+             </span>
+           </label>
+         </div>
+
+       Dos decisiones que no son de estilo:
+        - El disparador es un <button type="button">, no un <i>: así se abre con
+          el teclado y al tocarlo donde no existe el hover. `type="button"` es
+          obligatorio o envía el formulario que lo contiene.
+        - El panel se ancla a `.tip-anchor` y NO al icono. Centrado sobre un
+          icono de 16 px se sale de la pantalla a 390 px; anclado a la fila
+          nunca puede desbordar, porque mide lo que mide la fila. */
+    .tip-anchor { @apply relative; }
+    /* Fila de una casilla con ayuda: la casilla y su «?» en la misma línea.
+       Hace falta porque `.form-check` es un bloque y el «?», que va FUERA de la
+       <label> —un <button> dentro de una etiqueta recibe su clic y terminaría
+       marcando la casilla—, caería a la línea siguiente. */
+    .tip-check { @apply relative flex items-start gap-1.5; }
+    .tip-check > .tip { @apply mt-0.5; }
+    .tip { @apply inline-flex align-middle; }
+    .tip-btn {
+        @apply inline-flex size-4 shrink-0 cursor-help items-center justify-center rounded-full
+               text-muted transition-colors hover:text-primary
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30;
+    }
+    .tip-body {
+        @apply invisible absolute inset-x-0 top-full z-30 mt-1 max-w-sm rounded-md
+               border border-line bg-surface px-3 py-2 text-left text-xs font-normal
+               leading-snug text-ink opacity-0 shadow-lg transition-opacity duration-150;
+    }
+    /* `:focus` y no solo `:focus-visible`: al tocar en el móvil el botón recibe
+       el foco pero no siempre el `focus-visible`, y sin esto el tooltip sería
+       inalcanzable sin ratón. El anillo sí se reserva al teclado. */
+    .tip-btn:hover ~ .tip-body,
+    .tip-btn:focus ~ .tip-body { @apply visible opacity-100; }
+
+    /* Checkbox / switch */
+    .form-check { @apply flex items-start gap-2; }
+    .form-check-input { @apply mt-0.5 size-4 shrink-0 rounded border-line accent-[var(--color-primary)]; }
+    .form-check-label { @apply text-sm text-ink; }
+
+    /* Input con addon (icono a la izquierda) */
+    .input-group { @apply flex items-stretch; }
+    .input-group-text {
+        @apply inline-flex items-center rounded-l-sm border border-r-0 border-line
+               bg-surface-muted px-3 text-muted;
+    }
+    .input-group > .form-input,
+    .input-group > .form-select { @apply rounded-l-none; }
+    .input-group > .input-group-text + .form-input { @apply rounded-l-none; }
+
+    /* --- Tarjetas --- */
+    .card {
+        @apply rounded-lg bg-surface shadow-lg border border-line/60;
+    }
+    .card-header {
+        @apply flex items-center gap-2 border-b border-line px-6 py-4 text-ink;
+    }
+    .card-body { @apply p-6; }
+
+    /* --- Listas tipo "list-group" --- */
+    .list-group { @apply divide-y divide-line; }
+    .list-group-item { @apply flex items-center justify-between py-3 text-sm text-ink; }
+
+    /* --- Alertas --- */
+    .alert { @apply flex items-start gap-2 rounded-sm px-4 py-3 text-sm mb-4 border; }
+    .alert-success { @apply bg-success-soft text-success border-success/30; }
+    .alert-error,
+    .alert-danger  { @apply bg-danger-soft text-danger border-danger/30; }
+    .alert-warning { @apply bg-warning-soft text-warning border-warning/30; }
+    .alert-info    { @apply bg-info-soft text-info border-info/30; }
+
+    /* --- Badges (sólidos, en píldora) --- */
+    .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium; }
+    .badge-primary   { @apply bg-primary text-primary-contrast; }
+    .badge-success   { @apply bg-success text-white; }
+    .badge-danger    { @apply bg-danger text-white; }
+    .badge-info      { @apply bg-info text-white; }
+    .badge-warning   { @apply bg-warning text-white; }
+    .badge-secondary { @apply bg-line-strong text-ink; }
+    .badge-light     { @apply bg-surface-muted text-ink; }
+
+    /* --- Avatares (iniciales) --- */
+    .avatar {
+        @apply inline-flex size-10 items-center justify-center rounded-full
+               bg-primary font-semibold text-primary-contrast;
+    }
+    .avatar-lg { @apply size-24 text-4xl; }
+
+    /* --- Selector de color del tema (settings / profile) --- */
+    .theme-color-circle {
+        @apply relative size-10 cursor-pointer rounded-full border-[3px] border-transparent transition-all;
+    }
+    .theme-color-circle:hover { @apply scale-110 shadow-md; }
+    .theme-color-circle.active {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-primary);
+    }
+    /* Botón "color personalizado": neutro, sin literales de color (solo tokens) */
+    .custom-color-picker {
+        @apply flex items-center justify-center border-dashed border-line-strong
+               bg-surface-muted text-lg text-muted hover:text-primary hover:border-primary;
+    }
+
+    /* --- Tablas --- */
+    .table-card { @apply overflow-hidden rounded-lg bg-surface shadow-sm border border-line/60; }
+    .table { @apply w-full text-left text-sm; }
+    .table thead th {
+        @apply bg-surface-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted;
+    }
+    .table tbody td { @apply px-4 py-3 border-t border-line text-ink; }
+    .table tbody tr:hover { @apply bg-surface-muted/60; }
+
+    /* --- Tabs (navegación por pestañas) --- */
+    .tabs {
+        @apply flex flex-wrap gap-1 border-b border-line;
+    }
+    .tab-link {
+        @apply inline-flex cursor-pointer items-center gap-2 whitespace-nowrap
+               border-b-2 border-transparent px-4 py-2.5 -mb-px text-sm font-medium
+               text-muted transition-colors hover:text-primary
+               focus:outline-none;
+    }
+    .tab-link.active { @apply border-primary text-primary; }
+    .tab-panel { @apply pt-6; }
+    .tab-panel[hidden] { display: none; }
+
+    /* --- Sidebar (layout admin) --- */
+    .sidebar-link {
+        @apply flex items-center gap-3 rounded-sm px-3 py-2 text-sm text-muted
+               transition-colors hover:bg-primary-light hover:text-primary;
+    }
+    .sidebar-link.active { @apply bg-primary-light text-primary; }
+
+    /* --- Dropdown sin JS (basado en <details>) --- */
+    .dd { @apply relative; }
+    .dd > summary { @apply list-none cursor-pointer; }
+    .dd > summary::-webkit-details-marker { display: none; }
+    .dd-menu {
+        @apply absolute right-0 mt-2 min-w-[200px] rounded-md bg-surface p-1.5
+               shadow-lg border border-line z-50;
+    }
+    .dd-item {
+        @apply flex items-center gap-2 rounded-sm px-3 py-2 text-sm text-ink
+               hover:bg-primary-light hover:text-primary;
+    }
+    .dd-item.active { @apply bg-primary-light text-primary; }
+}

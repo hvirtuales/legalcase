@@ -1,0 +1,179 @@
+-- =========================================
+-- 1) TABLA BASE: PARTIDO
+-- =========================================
+CREATE TABLE partido (
+  id_partido        BIGSERIAL PRIMARY KEY,
+  nombre            VARCHAR(200) NOT NULL,
+  sigla             VARCHAR(30),
+  tipo_organizacion VARCHAR(40) NOT NULL,  -- partido | movimiento | gsc
+  ambito            VARCHAR(20) NOT NULL,  -- nacional | departamental | municipal
+  fecha_fundacion   DATE,
+  estado_legal      formed604  VARCHAR(20) NOT NULL DEFAULT 'VIGENTE', -- VIGENTE|SUSPENDIDO|CANCELADO
+  sitio_web         TEXT,
+  created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_partido_nombre UNIQUE (nombre),
+  CONSTRAINT uq_partido_sigla  UNIQUE (sigla),
+  CONSTRAINT ck_partido_tipo CHECK (tipo_organizacion IN ('partido','movimiento','gsc')),
+  CONSTRAINT ck_partido_ambito CHECK (ambito IN ('nacional','departamental','municipal')),
+  CONSTRAINT ck_partido_estado CHECK (estado_legal IN ('VIGENTE','SUSPENDIDO','CANCELADO'))
+);
+
+-- =========================================
+-- 2) RECONOCIMIENTO LEGAL / PERSONERÍA
+-- =========================================
+CREATE TABLE partido_personeria (
+  id_personeria      BIGSERIAL PRIMARY KEY,
+  id_partido         BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  autoridad          VARCHAR(80) NOT NULL DEFAULT 'CNE',
+  resolucion_numero  VARCHAR(80),
+  fecha_otorgamiento DATE,
+  vigencia_hasta     DATE,
+  fecha_renovacion   DATE
+);
+
+CREATE INDEX idx_personeria_partido ON partido_personeria(id_partido);
+
+-- =========================================
+-- 3) CONTACTOS (múltiples correos/teléfonos)
+-- =========================================
+CREATE TABLE partido_contacto (
+  id_contacto   BIGSERIAL PRIMARY KEY,
+  id_partido    BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  tipo          VARCHAR(30) NOT NULL, -- correo | telefono | otro
+  valor         VARCHAR(200) NOT NULL,
+  principal     BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX idx_contacto_partido ON partido_contacto(id_partido);
+
+-- =========================================
+-- 4) SEDES / UBICACIONES (con DIVIPOLA si ya la tienes)
+--    Si no tienes DIVIPOLA, puedes dejar depto/muni en texto.
+-- =========================================
+CREATE TABLE partido_sede (
+  id_sede       BIGSERIAL PRIMARY KEY,
+  id_partido    BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  tipo          VARCHAR(30) NOT NULL DEFAULT 'principal', -- principal | regional | municipal | otro
+  direccion     VARCHAR(200),
+  departamento  VARCHAR(120),
+  municipio     VARCHAR(120),
+  id_divipola   BIGINT, -- opcional: REFERENCES divipola(id_divipola)
+  activo        BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX idx_sede_partido ON partido_sede(id_partido);
+
+-- =========================================
+-- 5) PERSONA (si ya existe en tu modelo, reutilízala)
+--    Aquí dejo una versión mínima para que el script sea autocontenido.
+-- =========================================
+CREATE TABLE persona (
+  id_persona BIGSERIAL PRIMARY KEY,
+  nombres    VARCHAR(160) NOT NULL,
+  apellidos  VARCHAR(160) NOT NULL
+);
+
+-- =========================================
+-- 6) DIRECTIVOS / ROLES (histórico)
+-- =========================================
+CREATE TABLE partido_directivo (
+  id_directivo BIGSERIAL PRIMARY KEY,
+  id_partido   BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  id_persona   BIGINT NOT NULL REFERENCES persona(id_persona),
+  rol          VARCHAR(60) NOT NULL, -- presidente | secretario_general | representante_legal | tesorero | etc.
+  desde        DATE,
+  hasta        DATE,
+  activo       BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX idx_directivo_partido ON partido_directivo(id_partido);
+CREATE INDEX idx_directivo_persona ON partido_directivo(id_persona);
+
+-- =========================================
+-- 7) IDEOLOGÍA / DOCTRINA (versionable)
+-- =========================================
+CREATE TABLE partido_doctrina (
+  id_doctrina    BIGSERIAL PRIMARY KEY,
+  id_partido     BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  ideologia      VARCHAR(120),
+  principios     TEXT,
+  programa       TEXT,
+  version        VARCHAR(40),     -- ej: "2022", "v1.0"
+  fecha_publica  DATE,
+  vigente        BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE INDEX idx_doctrina_partido ON partido_doctrina(id_partido);
+
+-- =========================================
+-- 8) POSICIÓN POR TEMA (catálogo de temas + respuestas)
+-- =========================================
+CREATE TABLE catalogo_tema (
+  id_tema  BIGSERIAL PRIMARY KEY,
+  nombre   VARCHAR(120) NOT NULL,  -- economia, educacion, salud, seguridad, ambiente...
+  UNIQUE(nombre)
+);
+
+CREATE TABLE partido_posicion (
+  id_posicion BIGSERIAL PRIMARY KEY,
+  id_partido  BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  id_tema     BIGINT NOT NULL REFERENCES catalogo_tema(id_tema),
+  posicion    TEXT,
+  fecha       DATE,
+  UNIQUE(id_partido, id_tema, fecha)
+);
+
+-- =========================================
+-- 9) FINANZAS (alto nivel por periodo)
+-- =========================================
+CREATE TABLE partido_finanzas (
+  id_finanzas  BIGSERIAL PRIMARY KEY,
+  id_partido   BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  periodo      VARCHAR(20) NOT NULL,  -- ej: "2025", "2025-1", "2024Q4"
+  responsable_financiero_id_persona BIGINT REFERENCES persona(id_persona),
+  sistema_rendicion VARCHAR(60),      -- Cuentas Claras
+  informe_url  TEXT,
+  fecha_publicacion DATE,
+  UNIQUE(id_partido, periodo)
+);
+
+CREATE INDEX idx_finanzas_partido ON partido_finanzas(id_partido);
+
+-- =========================================
+-- 10) DOCUMENTOS (estatutos, resoluciones, doctrinas, informes, etc.)
+-- =========================================
+CREATE TABLE partido_documento (
+  id_documento BIGSERIAL PRIMARY KEY,
+  id_partido   BIGINT NOT NULL REFERENCES partido(id_partido) ON DELETE CASCADE,
+  tipo         VARCHAR(40) NOT NULL,  -- estatutos | doctrina | resolucion | informe_financiero | otro
+  titulo       VARCHAR(200),
+  url          TEXT,
+  fecha_doc    DATE,
+  hash         VARCHAR(128)           -- opcional: integridad del archivo
+);
+
+CREATE INDEX idx_documento_partido ON partido_documento(id_partido);
+
+-- =========================================
+-- 11) FUENTES (trazabilidad) + relación genérica
+-- =========================================
+CREATE TABLE fuente (
+  id_fuente      BIGSERIAL PRIMARY KEY,
+  tipo           VARCHAR(40) NOT NULL, -- web | pdf | oficio | base_datos | otro
+  titulo         VARCHAR(200),
+  url            TEXT,
+  fecha_consulta DATE NOT NULL DEFAULT CURRENT_DATE,
+  hash           VARCHAR(128)
+);
+
+CREATE TABLE fuente_relacion (
+  id_fuente_rel BIGSERIAL PRIMARY KEY,
+  id_fuente     BIGINT NOT NULL REFERENCES fuente(id_fuente) ON DELETE CASCADE,
+  entidad       VARCHAR(60) NOT NULL, -- 'partido','partido_personeria','partido_documento',etc.
+  id_registro   BIGINT NOT NULL,
+  nota          TEXT
+);
+
+CREATE INDEX idx_fuente_rel_fuente ON fuente_relacion(id_fuente);
+CREATE INDEX idx_fuente_rel_entidad ON fuente_relacion(entidad, id_registro);

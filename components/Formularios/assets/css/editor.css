@@ -1,0 +1,258 @@
+/*
+ * Editor de formularios: lienzo a pantalla completa.
+ *
+ * Este archivo carga DESPUES de la hoja del formulario público, que el layout
+ * incrusta para que el lienzo se vea como lo publicado. Lo primero que hace es
+ * reponer el `body`: aquella declara fondo y color para su propia página, y sin
+ * esto teñiría el panel entero.
+ */
+body.frm-fs {
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: inherit;
+}
+
+.frm-shell { display: flex; flex-direction: column; height: 100vh; }
+
+/* ------------------------------------------------------------------ barra */
+.frm-bar {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .5rem .75rem; flex: none;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
+}
+.frm-bar-title { display: flex; align-items: center; gap: .5rem; min-width: 0; flex: 1; }
+.frm-bar-title #frmTitleText {
+  font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 32ch;
+}
+.frm-bar-actions { display: flex; align-items: center; gap: .35rem; flex: none; }
+.frm-state { font-size: .75rem; color: var(--color-muted); }
+.frm-state[data-frm-state="dirty"] { color: #d97706; font-weight: 600; }
+.frm-state[data-frm-state="error"] { color: #dc2626; font-weight: 600; }
+
+/* ---------------------------------------------------------------- columnas */
+.frm-cols { flex: 1; display: flex; min-height: 0; }
+.frm-side {
+  width: 20rem; flex: none; display: flex; flex-direction: column; min-height: 0;
+  background: var(--color-surface);
+}
+.frm-left { border-right: 1px solid var(--color-line); }
+.frm-right { border-left: 1px solid var(--color-line); }
+.frm-side[hidden] { display: none; }
+.frm-side-body { flex: 1; overflow-y: auto; padding: .75rem; }
+
+.frm-tabs {
+  display: flex; align-items: center; gap: .25rem; flex: none;
+  padding: .4rem .5rem; border-bottom: 1px solid var(--color-line);
+}
+.frm-tab {
+  flex: 1; padding: .35rem .5rem; font-size: .8rem; font-weight: 600;
+  background: none; border: 0; border-radius: .5rem; cursor: pointer; color: var(--color-muted);
+}
+.frm-tab.is-on { background: var(--color-primary); color: #fff; }
+.frm-x { background: none; border: 0; cursor: pointer; color: var(--color-muted); padding: .25rem; }
+
+/* Plegado: solo tiene sentido con las tres columnas lado a lado. */
+@media (max-width: 1100px) {
+  .frm-cols { flex-direction: column; overflow-y: auto; }
+  .frm-side { width: auto; max-height: 40vh; }
+  body.frm-fs { overflow: auto; height: auto; }
+  .frm-shell { height: auto; min-height: 100vh; }
+}
+
+/* ------------------------------------------------------------- la paleta */
+.frm-palette { display: grid; grid-template-columns: repeat(2, 1fr); gap: .4rem; }
+.frm-chip {
+  display: flex; flex-direction: column; align-items: center; gap: .3rem;
+  padding: .6rem .3rem; text-align: center; cursor: grab;
+  background: var(--color-canvas); border: 1px solid var(--color-line);
+  border-radius: .65rem; font-size: .72rem; line-height: 1.25;
+  transition: border-color .12s, transform .12s;
+}
+.frm-chip:hover { border-color: var(--color-primary); transform: translateY(-1px); }
+.frm-chip i { font-size: 1.15rem; color: var(--color-primary); }
+.frm-group-title {
+  grid-column: 1 / -1; margin: .5rem 0 .1rem; font-size: .68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--color-muted);
+}
+
+/* ---------------------------------------------------------- la estructura */
+.frm-tree { display: flex; flex-direction: column; gap: .15rem; }
+.frm-tree-page {
+  margin-top: .5rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--color-muted);
+}
+.frm-tree-item {
+  display: flex; align-items: center; gap: .4rem; padding: .3rem .45rem;
+  border-radius: .45rem; cursor: pointer; font-size: .8rem;
+  border: 1px solid transparent;
+}
+.frm-tree-item:hover { background: var(--color-canvas); }
+.frm-tree-item.is-on { border-color: var(--color-primary); background: var(--color-canvas); font-weight: 600; }
+.frm-tree-item i { color: var(--color-muted); }
+.frm-tree-item.is-dragging { opacity: .45; }
+
+/* ------------------------------------------------------------- el lienzo */
+.frm-canvas { flex: 1; min-width: 0; overflow-y: auto; padding: 1rem; }
+.frm-pagebar { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .75rem; }
+.frm-page-tab {
+  display: flex; align-items: center; gap: .35rem;
+  padding: .3rem .7rem; font-size: .78rem; border-radius: 999px; cursor: pointer;
+  background: var(--color-surface); border: 1px solid var(--color-line); color: var(--color-ink);
+}
+.frm-page-tab.is-on { background: var(--color-primary); color: #fff; border-color: transparent; }
+.frm-page-add { border-style: dashed; color: var(--color-muted); }
+
+.frm-paper {
+  max-width: 46rem; margin: 0 auto;
+  background: var(--color-surface); border: 1px solid var(--color-line);
+  border-radius: 1rem; padding: 1.25rem; min-height: 60vh;
+}
+.frm-drop { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.frm-empty {
+  width: 100%; padding: 3rem 1rem; text-align: center; color: var(--color-muted);
+  border: 2px dashed var(--color-line); border-radius: .75rem; font-size: .85rem;
+}
+.frm-empty.is-over { border-color: var(--color-primary); }
+
+/* Cada campo del lienzo: envoltorio de edición sobre la vista real. */
+.frm-node {
+  position: relative; flex: 1 1 100%; min-width: 0;
+  padding: .75rem; border: 1px solid var(--color-line); border-radius: .75rem;
+  background: var(--color-surface); cursor: pointer;
+}
+.frm-node.w50 { flex: 0 1 calc(50% - .5rem); }
+.frm-node.w33 { flex: 0 1 calc(33.333% - .67rem); }
+.frm-node:hover { border-color: var(--color-primary); }
+.frm-node.is-on { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary); }
+.frm-node.is-dragging { opacity: .45; }
+.frm-node.is-hidden-by-logic::after {
+  content: ""; position: absolute; inset: 0; border-radius: .75rem;
+  background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(120,120,120,.08) 8px, rgba(120,120,120,.08) 16px);
+  pointer-events: none;
+}
+.frm-tools {
+  position: absolute; top: .35rem; right: .35rem; display: flex; gap: .1rem;
+  padding: .15rem; border-radius: .5rem; opacity: 0;
+  background: var(--color-surface); border: 1px solid var(--color-line);
+  transition: opacity .12s;
+}
+.frm-node:hover .frm-tools, .frm-node.is-on .frm-tools { opacity: 1; }
+.frm-tools button {
+  background: none; border: 0; cursor: pointer; padding: .2rem .25rem;
+  color: var(--color-muted); font-size: .8rem; line-height: 1;
+}
+.frm-tools button:hover { color: var(--color-ink); }
+.frm-tools .frm-del:hover { color: #dc2626; }
+.frm-badge {
+  position: absolute; top: -.55rem; left: .6rem; padding: 0 .4rem;
+  font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  background: var(--color-surface); color: var(--color-muted);
+}
+.frm-gap { flex: 1 1 100%; height: .35rem; border-radius: 999px; }
+.frm-gap.is-over { background: var(--color-primary); }
+
+/* --------------------------------------------------------- el inspector */
+.frm-field { margin-bottom: .8rem; }
+.frm-field > label { display: block; font-size: .74rem; font-weight: 700; margin-bottom: .2rem; }
+.frm-field .frm-hint { font-size: .68rem; color: var(--color-muted); margin-top: .15rem; }
+.frm-field input[type=text], .frm-field input[type=number], .frm-field input[type=email],
+.frm-field input[type=url], .frm-field input[type=password], .frm-field input[type=datetime-local],
+.frm-field select, .frm-field textarea {
+  width: 100%; padding: .4rem .55rem; font: inherit; font-size: .82rem;
+  color: var(--color-ink); background: var(--color-canvas);
+  border: 1px solid var(--color-line); border-radius: .5rem;
+}
+.frm-field textarea { resize: vertical; min-height: 4.5rem; }
+.frm-check { display: flex; align-items: center; gap: .5rem; font-size: .8rem; }
+.frm-opt { display: flex; gap: .3rem; margin-bottom: .3rem; align-items: center; }
+.frm-opt input { flex: 1; min-width: 0; }
+.frm-opt button { background: none; border: 0; color: var(--color-muted); cursor: pointer; }
+.frm-opt button:hover { color: #dc2626; }
+.frm-sub {
+  margin: .3rem 0 .8rem; padding: .55rem; border-radius: .6rem;
+  background: var(--color-canvas); border: 1px solid var(--color-line);
+}
+.frm-inspector-empty { padding: 2rem .5rem; text-align: center; color: var(--color-muted); font-size: .82rem; }
+
+/* Aviso flotante que trae la operación anterior. */
+.frm-flash {
+  position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%);
+  display: flex; align-items: center; gap: .5rem; z-index: 60;
+  padding: .6rem 1rem; border-radius: 999px; font-size: .85rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18); transition: opacity .4s, transform .4s;
+}
+.frm-flash.is-gone { opacity: 0; transform: translate(-50%, .5rem); }
+
+/* ------------------------------------------ lo que faltaba del lienzo */
+
+/* Contador de campos de cada pestaña de página. */
+.frm-page-n {
+  min-width: 1.25rem; padding: 0 .3rem; border-radius: 999px;
+  font-size: .68rem; font-weight: 700; text-align: center;
+  background: var(--color-line); color: var(--color-muted);
+}
+.frm-page-tab.is-on .frm-page-n { background: rgba(255,255,255,.25); color: #fff; }
+.frm-page-all { border-style: dashed; }
+
+/* Ajustes de la página activa, junto al lienzo. */
+.frm-pagetools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  max-width: 46rem; margin: 0 auto .6rem;
+}
+.frm-page-title, .frm-page-desc {
+  padding: .3rem .5rem; font: inherit; font-size: .8rem;
+  color: var(--color-ink); background: var(--color-surface);
+  border: 1px solid var(--color-line); border-radius: .5rem;
+}
+.frm-page-title { flex: 1 1 12rem; font-weight: 600; min-width: 0; }
+.frm-page-desc { flex: 2 1 16rem; min-width: 0; }
+.frm-page-acts { display: flex; gap: .1rem; }
+.frm-page-acts button {
+  background: none; border: 0; cursor: pointer; padding: .3rem;
+  color: var(--color-muted); line-height: 1;
+}
+.frm-page-acts button:hover { color: var(--color-ink); }
+.frm-page-acts .frm-del:hover { color: #dc2626; }
+
+/* Título y descripción del formulario, editables donde se ven. */
+.frm-paper-head { margin-bottom: 1rem; padding-bottom: .75rem; border-bottom: 1px solid var(--color-line); }
+.frm-form-title, .frm-form-desc {
+  width: 100%; padding: .2rem 0; font: inherit; color: var(--color-ink);
+  background: transparent; border: 0; border-bottom: 1px solid transparent;
+}
+.frm-form-title { font-size: 1.15rem; font-weight: 700; }
+.frm-form-desc { font-size: .85rem; color: var(--color-muted); resize: vertical; }
+.frm-form-title:hover, .frm-form-desc:hover { border-bottom-color: var(--color-line); }
+.frm-form-title:focus, .frm-form-desc:focus { outline: none; border-bottom-color: var(--color-primary); }
+
+/* Anchos en la barra del campo: lo que permite varios campos por fila. */
+.frm-widths { display: flex; gap: .05rem; padding-right: .2rem; margin-right: .2rem; border-right: 1px solid var(--color-line); }
+.frm-widths button {
+  background: none; border: 0; cursor: pointer; padding: .15rem .3rem;
+  font: inherit; font-size: .66rem; font-weight: 700; line-height: 1.4;
+  color: var(--color-muted); border-radius: .3rem;
+}
+.frm-widths button:hover { color: var(--color-ink); background: var(--color-canvas); }
+.frm-widths button.is-on { background: var(--color-primary); color: #fff; }
+
+/* Recuento bajo el lienzo. */
+.frm-count { max-width: 46rem; margin: .6rem auto 0; font-size: .75rem; color: var(--color-muted); text-align: right; }
+
+/* La zona de soltado del final ya no va entre campos: entre ellos rompía la
+   fila y por eso dos campos al 1/2 nunca la compartían. Ahora el sitio lo marca
+   el propio campo, con un filete en el lado por el que va a caer. */
+.frm-node.is-before, .frm-node.is-after { position: relative; }
+.frm-node.is-before::before, .frm-node.is-after::after {
+  content: ""; position: absolute; top: .25rem; bottom: .25rem; width: 3px;
+  border-radius: 999px; background: var(--color-primary);
+}
+.frm-node.is-before::before { left: -.6rem; }
+.frm-node.is-after::after { right: -.6rem; }
+
+/* Igual que en la hoja pública: el atributo `hidden` tiene que ganar a cualquier
+   clase que declare `display`. Si no, el aviso de «ponle nombre» —que usa la
+   clase `.alert` del núcleo, con `display:flex`— se vería siempre. */
+[hidden] { display: none !important; }

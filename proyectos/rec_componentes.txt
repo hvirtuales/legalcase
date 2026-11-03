@@ -1,0 +1,394 @@
+Actúa como arquitecto senior de software especializado en CodeIgniter 4, diseño modular, sistemas extensibles tipo WordPress, migraciones de base de datos y arquitectura multiaplicación.
+
+Tengo una plataforma base desarrollada en CodeIgniter 4 y deseo convertirla en una arquitectura extensible tipo WordPress, donde la plataforma principal funcione como núcleo del sistema y permita instalar, activar, desactivar, actualizar y desinstalar componentes adicionales.
+
+El objetivo es que estos componentes funcionen como aplicaciones o módulos independientes que puedan agregarse a la plataforma sin afectar las tablas, rutas, controladores, modelos, vistas, permisos ni configuraciones base del sistema.
+
+Necesito que diseñes una propuesta técnica completa para implementar esta arquitectura modular en CodeIgniter 4.
+
+La solución debe contemplar lo siguiente:
+
+1. Arquitectura general del sistema
+
+Definir una estructura donde exista:
+
+* Un núcleo principal de la plataforma.
+* Un gestor de componentes o aplicaciones instalables.
+* Componentes independientes ubicados en una carpeta específica.
+* Separación clara entre código base y código de cada componente.
+* Capacidad de activar o desactivar componentes sin eliminar su información.
+* Capacidad de instalar o desinstalar componentes desde un panel administrativo.
+* Capacidad de registrar rutas, vistas, controladores, modelos, helpers, servicios y migraciones propias de cada componente.
+
+2. Estructura recomendada de carpetas
+
+Proponer una estructura organizada para CodeIgniter 4 donde los componentes se puedan ubicar de forma independiente.
+
+Cada componente debe poder tener su propia estructura interna, incluyendo:
+
+* Configuración del componente.
+* Controladores.
+* Modelos.
+* Entidades.
+* Vistas.
+* Migraciones.
+* Seeds.
+* Helpers.
+* Librerías o servicios.
+* Archivos de idioma si aplica.
+* Assets propios, como CSS, JS, imágenes o recursos multimedia.
+* Archivo manifest o descriptor del componente.
+
+3. Archivo manifest del componente
+
+Definir la estructura de un archivo de configuración o manifest para cada componente, donde se indiquen como mínimo:
+
+* Nombre del componente.
+* Código único del componente.
+* Versión.
+* Descripción.
+* Autor.
+* Estado.
+* Dependencias.
+* Versión mínima requerida del sistema.
+* Prefijo de tablas.
+* Rutas que registra.
+* Permisos que requiere.
+* Menús que agrega al sistema.
+* Migraciones asociadas.
+* Eventos o hooks que utiliza.
+* Servicios que expone.
+* Parámetros configurables.
+
+4. Prefijos de tablas por componente
+
+Diseñar una estrategia para que cada componente tenga sus propias tablas adicionales sin chocar con las tablas base de la plataforma.
+
+La plataforma base ya cuenta con tablas principales del sistema, por lo tanto, los componentes no deben modificar directamente esas tablas salvo que sea estrictamente necesario.
+
+Cada componente debe crear sus tablas usando un prefijo propio, por ejemplo:
+
+* Sistema base: core_, sys_ o app_
+* Componente de facturación: cmp_fact_
+* Componente de encuestas: cmp_enc_
+* Componente de cartera: cmp_cart_
+* Componente de eventos: cmp_evt_
+* Componente de inventario: cmp_inv_
+
+La estrategia debe incluir:
+
+* Convención de nombres de tablas.
+* Convención de nombres de campos.
+* Uso de claves primarias.
+* Uso de claves foráneas hacia tablas base cuando sea necesario.
+* Reglas para evitar colisiones entre componentes.
+* Reglas para evitar que un componente sobrescriba tablas de otro.
+* Validación previa antes de ejecutar migraciones.
+* Registro de tablas instaladas por cada componente.
+* Manejo de rollback o desinstalación segura.
+
+5. Migraciones independientes por componente
+
+Diseñar cómo deben funcionar las migraciones de cada componente.
+
+Cada componente debe poder tener sus propias migraciones y estas deben ejecutarse únicamente cuando el componente se instala o actualiza.
+
+La solución debe contemplar:
+
+* Migraciones separadas por componente.
+* Control de versión del componente.
+* Ejecución de migraciones al instalar.
+* Ejecución de migraciones al actualizar.
+* Rollback al desinstalar, si aplica.
+* Registro del historial de migraciones por componente.
+* Validación para evitar ejecutar dos veces la misma migración.
+* Compatibilidad con diferentes motores de base de datos cuando sea posible.
+* Buenas prácticas para migraciones seguras.
+
+6. Registro de componentes instalados
+
+Diseñar las tablas base necesarias para que el sistema pueda controlar los componentes instalados.
+
+Estas tablas deben permitir registrar:
+
+* Componentes disponibles.
+* Componentes instalados.
+* Componentes activos o inactivos.
+* Versión instalada.
+* Fecha de instalación.
+* Fecha de actualización.
+* Usuario que instaló el componente.
+* Estado del componente.
+* Configuración del componente.
+* Dependencias.
+* Permisos asociados.
+* Menús agregados.
+* Rutas registradas.
+* Tablas creadas por el componente.
+* Historial de instalación, actualización y desinstalación.
+
+7. Gestor de instalación de componentes
+
+Definir cómo debe funcionar el instalador de componentes desde el panel administrativo.
+
+El proceso debe contemplar:
+
+* Cargar o detectar componentes disponibles.
+* Leer el manifest del componente.
+* Validar compatibilidad con la versión del sistema.
+* Validar dependencias.
+* Validar prefijo de tablas.
+* Validar que no existan conflictos con tablas existentes.
+* Ejecutar migraciones.
+* Registrar permisos.
+* Registrar menús.
+* Registrar rutas.
+* Publicar assets si aplica.
+* Registrar el componente como instalado.
+* Activar el componente si el usuario lo decide.
+* Mostrar errores claros si falla la instalación.
+* Permitir rollback si la instalación no se completa.
+
+8. Activación y desactivación de componentes
+
+Diseñar la lógica para activar y desactivar componentes sin eliminar sus datos.
+
+Cuando un componente esté desactivado:
+
+* No debe mostrar sus menús.
+* No debe permitir acceder a sus rutas.
+* No debe cargar sus servicios.
+* No debe ejecutar sus eventos.
+* No debe aparecer como funcional para usuarios finales.
+* Sus tablas y datos deben conservarse.
+
+Cuando se active nuevamente:
+
+* Debe recuperar sus rutas.
+* Debe mostrar sus menús.
+* Debe habilitar sus permisos.
+* Debe cargar sus servicios.
+* Debe funcionar con los datos existentes.
+
+9. Desinstalación segura de componentes
+
+Diseñar un proceso de desinstalación segura que permita decidir si se conservan o eliminan los datos.
+
+El sistema debe ofrecer opciones como:
+
+* Desactivar únicamente.
+* Desinstalar conservando datos.
+* Desinstalar eliminando tablas y datos.
+* Exportar datos antes de eliminar.
+* Ejecutar rollback de migraciones.
+* Eliminar menús.
+* Eliminar permisos.
+* Eliminar configuraciones.
+* Eliminar assets publicados.
+* Registrar auditoría del proceso.
+
+10. Rutas dinámicas por componente
+
+Definir cómo registrar rutas de manera dinámica para cada componente instalado y activo.
+
+Cada componente debe poder definir sus propias rutas sin modificar manualmente el archivo principal de rutas del sistema.
+
+La solución debe incluir:
+
+* Carga automática de rutas desde componentes activos.
+* Validación de rutas duplicadas.
+* Prefijo de rutas por componente.
+* Middleware o filtros propios.
+* Protección por permisos.
+* Separación entre rutas administrativas, públicas y API.
+* Manejo de errores cuando un componente no está activo.
+
+11. Menús dinámicos por componente
+
+Definir cómo los componentes pueden agregar opciones al menú del sistema.
+
+La solución debe contemplar:
+
+* Registro de menús desde el manifest.
+* Menús visibles solo si el componente está activo.
+* Menús visibles según permisos del usuario.
+* Ordenamiento de menús.
+* Íconos.
+* Rutas asociadas.
+* Menús padre e hijos.
+* Ocultamiento automático al desactivar el componente.
+
+12. Permisos por componente
+
+Diseñar un esquema de permisos donde cada componente pueda registrar sus propios permisos.
+
+El sistema debe permitir:
+
+* Registrar permisos al instalar el componente.
+* Asociar permisos a roles existentes.
+* Controlar acceso a rutas, acciones y vistas.
+* Desactivar permisos cuando el componente esté inactivo.
+* Evitar conflictos de nombres usando prefijos.
+* Mantener una convención clara de permisos.
+
+Los permisos podrían usar una convención como:
+
+* componente.ver
+* componente.crear
+* componente.editar
+* componente.eliminar
+* componente.configurar
+* componente.exportar
+* componente.importar
+
+13. Integración con el núcleo base
+
+Definir cómo los componentes deben integrarse con las tablas base sin afectar su estructura.
+
+La solución debe explicar:
+
+* Cuándo un componente puede relacionarse con usuarios, empresas, roles u otras tablas base.
+* Cómo usar claves foráneas hacia tablas base.
+* Cómo evitar modificar columnas de tablas base.
+* Cómo extender información mediante tablas propias.
+* Cómo manejar relaciones polimórficas o tablas puente cuando aplique.
+* Cómo mantener compatibilidad futura del núcleo.
+
+14. Eventos, hooks o puntos de extensión
+
+Diseñar un sistema de eventos o hooks para que los componentes puedan extender funcionalidades del núcleo sin modificar código base.
+
+Debe contemplar eventos como:
+
+* Antes de instalar componente.
+* Después de instalar componente.
+* Antes de activar componente.
+* Después de activar componente.
+* Antes de desactivar componente.
+* Después de desactivar componente.
+* Antes de eliminar componente.
+* Después de eliminar componente.
+* Al iniciar sesión.
+* Al crear usuario.
+* Al actualizar empresa.
+* Al cargar dashboard.
+* Al generar menú.
+* Al procesar una acción administrativa.
+
+15. Panel administrativo de componentes
+
+Diseñar las funcionalidades que debe tener el panel administrativo para gestionar componentes.
+
+Debe incluir:
+
+* Lista de componentes disponibles.
+* Lista de componentes instalados.
+* Estado de cada componente.
+* Versión instalada.
+* Versión disponible.
+* Botones para instalar, activar, desactivar, actualizar y desinstalar.
+* Visualización del manifest.
+* Validación de dependencias.
+* Logs de instalación.
+* Configuración individual de cada componente.
+* Auditoría de acciones realizadas.
+* Advertencias antes de eliminar datos.
+
+16. Seguridad
+
+Incluir recomendaciones de seguridad para esta arquitectura modular.
+
+Debe contemplar:
+
+* Validación de componentes antes de instalarlos.
+* Evitar ejecución de código no confiable.
+* Control de permisos por rol.
+* Protección CSRF.
+* Validación de rutas.
+* Validación de archivos cargados.
+* Revisión de migraciones antes de ejecutarlas.
+* Auditoría de instalación y cambios.
+* Aislamiento lógico entre componentes.
+* Evitar que un componente pueda alterar tablas críticas del núcleo.
+* Evitar conflictos de namespaces, rutas, permisos y tablas.
+
+17. Compatibilidad con bases de datos
+
+La solución debe considerar que el sistema puede usar diferentes motores de base de datos, como MySQL, PostgreSQL y SQL Server.
+
+Las migraciones de los componentes deben diseñarse de forma genérica cuando sea posible.
+
+Debe incluir recomendaciones para:
+
+* Tipos de datos compatibles.
+* Campos de fecha.
+* Campos JSON o alternativas.
+* Claves primarias.
+* Índices.
+* Llaves foráneas.
+* Nombres de tablas y columnas.
+* Restricciones.
+* Evitar sintaxis exclusiva de un solo motor.
+* Separar lógica específica por motor cuando sea necesario.
+
+18. Actualización de componentes
+
+Diseñar cómo se deben actualizar los componentes.
+
+El proceso debe incluir:
+
+* Validación de versión actual.
+* Validación de versión nueva.
+* Comparación de migraciones pendientes.
+* Backup recomendado antes de actualizar.
+* Ejecución de migraciones incrementales.
+* Registro de cambios.
+* Rollback si falla la actualización.
+* Validación posterior.
+* Actualización del manifest registrado.
+* Compatibilidad con versiones anteriores del núcleo.
+
+19. Buenas prácticas de desarrollo
+
+Incluir buenas prácticas para que cada componente sea mantenible y escalable.
+
+Debe contemplar:
+
+* Namespaces propios.
+* Separación de responsabilidades.
+* No modificar archivos del núcleo.
+* Uso de servicios.
+* Uso de interfaces cuando sea necesario.
+* Uso de modelos propios.
+* Uso de migraciones propias.
+* Uso de validaciones propias.
+* Convenciones de nombres.
+* Documentación interna.
+* Pruebas básicas.
+* Logs.
+* Manejo de errores.
+* Compatibilidad con futuras versiones.
+
+20. Entregables esperados
+
+Genera como resultado:
+
+* Propuesta de arquitectura modular para CodeIgniter 4.
+* Estructura de carpetas recomendada.
+* Diseño del manifest del componente.
+* Diseño de tablas base para gestionar componentes.
+* Convención de prefijos de tablas.
+* Flujo de instalación de componentes.
+* Flujo de activación y desactivación.
+* Flujo de actualización.
+* Flujo de desinstalación.
+* Estrategia de migraciones independientes.
+* Estrategia de rutas dinámicas.
+* Estrategia de menús dinámicos.
+* Estrategia de permisos por componente.
+* Recomendaciones de seguridad.
+* Recomendaciones para compatibilidad con MySQL, PostgreSQL y SQL Server.
+* Reglas para evitar conflictos entre componentes.
+* Recomendaciones para mantener el núcleo separado de los componentes.
+
+No generes todavía código fuente completo. Primero entrega la arquitectura, las decisiones técnicas, las convenciones, las tablas necesarias, los flujos y las recomendaciones para implementar correctamente esta funcionalidad.
