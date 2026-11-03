@@ -524,11 +524,13 @@ convive con los expedientes de LeadFlow sin tocarlos.
   botón y el POST consume (los escáneres de correo no gastan el enlace). Sesión aparte (`lgc_portal`) revalidada
   en cada petición, caducidad por inactividad 1 h. `ClientView` es la **única** puerta de datos del portal y
   devuelve listas blancas de campos (nunca `strategy`, `description`, `objectives` ni `title` interno). Solo
-  `client`/`representative` pueden tener acceso, y es **por asunto** (`participants.portal_access`).
+  `client`, `representative` y `guardian` pueden tener acceso (`ParticipantModel::PORTAL_ROLES`; los dos últimos
+  con poder acreditado y vigente), y es **por asunto** (`participants.portal_access`).
 - **Vistas del portal y correos: autosuficientes** (CSS/SVG en línea, `--lc-*`, modo oscuro por
   `prefers-color-scheme`).
-- **Plazos:** registro manual, nacen `to_validate`; política `dual` exige dos personas distintas en los críticos.
-  El componente **no calcula términos judiciales**.
+- **Plazos:** nacen siempre `to_validate`; política `dual` exige dos personas distintas en los críticos. Con
+  `starts_on` + `term_days` el componente **propone** la fecha con `Libraries/Calendar` (ver 1.2), pero **no la
+  confirma**: la valida una persona. Sin término, la fecha es manual.
 - **Documentos:** `writable/uploads/lgc/<empresa>/`, nombre aleatorio, MIME por contenido, SHA-256 y
   deduplicación por asunto, `classification` (`internal|privileged|review|shared`); solo `shared` llega al portal.
   Antivirus: usa `clamdscan/clamscan` si existe en el servidor.
@@ -551,7 +553,7 @@ convive con los expedientes de LeadFlow sin tocarlos.
     `ClientView::threadsQuery()/requestsQuery()` y `Outbox::notifyMatter(..., $onlyAccounts)`.
   - **Ley 1581:** autorización en el contacto (`consent_*`), aviso de privacidad versionado que el portal exige
     aceptar (`Portal::needsPrivacy()/acceptPrivacy()`), solicitudes de derechos (`threads.kind=data_rights`,
-    10/15 días hábiles sin festivos).
+    10/15 días hábiles, contados con `Calendar`: descuenta festivos de Colombia y días propios del despacho).
   - **Poder del representante** (`participants.authority_*`): sin documento y vigencia no hay portal.
   - **Cierre** con pendientes confirmados; **eliminar** solo vacío o pasada la retención y sin `legal_hold`;
     **reasignación** de trabajo; **alertas internas** de plazos 7/3/1/0 días y de mensajes/entregas
@@ -564,18 +566,28 @@ convive con los expedientes de LeadFlow sin tocarlos.
   - **Audiencias (`cmp_lgc_hearings`, `HearingService`):** modalidad, lugar o enlace solo https, tarea de
     preparación, compartir con `lgc.share`; reprogramar re-avisa (`ref_type` con hash de fecha/lugar). El portal
     recibe lista blanca sin `internal_notes`. Alerta interna 36 h antes.
+    - **Edición en la ficha** (pestaña Plazos, `<details>` por audiencia, campos en `tabs/_hearing_fields`, el
+      mismo parcial del alta). Cambiar la fecha **mueve la tarea de preparación** (o la reabre si el aplazamiento
+      la canceló) y devuelve una aplazada a `scheduled`.
+    - Sin `lgc.share` se puede editar, pero **no compartir ni dejar de compartir**: se conserva lo decidido.
+    - **Aplazar o cancelar una compartida avisa al cliente** (`ref_type` `hearing_postponed|hearing_cancelled`),
+      y el portal muestra la cancelada (sin enlace ni indicaciones) para que el aviso no apunte a nada.
+    - **Una audiencia compartida y vigente no se elimina, se cancela** (`HearingService::delete()`): borrarla la
+      haría desaparecer del portal sin explicación. Eliminar (`lgc.delete`) es para registros equivocados.
+    - «Mi día» lista las audiencias de hoy a 7 días (programadas y aplazadas).
   - **Versiones de documentos:** `version / previous_id / is_current`; el portal y la ficha muestran solo la
     vigente; una nueva versión anula las firmas pendientes de la anterior.
   - **Firma electrónica (`SignatureService`, `cmp_lgc_signatures`):** proveedor `simple` con evidencia (hash del
     documento comprobado al firmar, nombre, documento, fecha, IP, agente y `evidence_hash`); constancia en
     `firmas/evidencia/{id}`. No es firma digital certificada: otro proveedor va por `provider`.
   - **Contrato de servicios (`cmp_lgc_engagements`):** alcance, exclusiones, honorarios, vigencia y documento;
-    se envía a firma y pasa a `signed` solo; firmado no se edita.
+    se envía a firma y pasa a `signed` solo; firmado no se edita. **Consultarlo es `lgc.view`** (GET, formulario
+    deshabilitado) y guardarlo `lgc.edit` (POST): son dos rutas con el mismo método del controlador.
   - **Capacidad legal** (`contacts.legal_capacity`): un menor o incapaz no accede al portal y su asunto pasa a
     sensible y restringido; actúa el `guardian` con documento acreditado (`ParticipantModel::AUTHORITY_ROLES`).
   - **Derechos del titular (`DataSubjectService`):** exportación JSON y supresión (anonimiza) solo si no hay
     asunto vigente, dentro de la retención o con bloqueo legal.
-- **Verificado en PostgreSQL 16** (instalación, `lgc:autotest` 138/138, `lgc:contrato` 42/42, navegador real
+- **Verificado en PostgreSQL 16** (instalación, `lgc:autotest` 144/144, `lgc:contrato` 42/42, navegador real
   claro/oscuro/390 px). El desborde horizontal a 390 px que se ve en las pantallas internas es de la barra
   superior del núcleo (también ocurre en `/dashboard`).
 - **`view()` conserva datos entre llamadas** (`saveData = true`): a `partials/delete_button` se le pasan siempre

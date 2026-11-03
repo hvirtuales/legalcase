@@ -14,7 +14,7 @@ use Components\LegalCase\Libraries\Meta;
 use Components\LegalCase\Models\EngagementModel;
 
 $v      = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
-$locked = ($row['status'] ?? 'draft') === 'signed' || !$canWork;
+$locked = ($row['status'] ?? 'draft') === 'signed' || !$canWork || !$acc->can('lgc.edit');
 $mid    = (int) $matter['id'];
 ?>
 <div class="mb-4 flex items-center gap-3">

@@ -165,6 +165,16 @@ class Work extends BaseLgc
         return $this->done((new HearingService())->save($matter, $this->request->getPost(), $this->acc(), $row), $this->matterUrl($matter, 'plazos'));
     }
 
+    public function deleteHearing($id = null)
+    {
+        [$row, $matter] = $this->findChild(HearingModel::class, $id);
+        if (!$row) {
+            return $this->notFound();
+        }
+
+        return $this->done((new HearingService())->delete($matter, $row, $this->acc()), $this->matterUrl($matter, 'plazos'));
+    }
+
     public function hearingStatus($id = null)
     {
         [$row, $matter] = $this->findChild(HearingModel::class, $id);

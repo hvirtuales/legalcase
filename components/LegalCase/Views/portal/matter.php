@@ -54,10 +54,11 @@ ob_start(); ?>
 <div class="lc-card" id="audiencias">
   <h2><?= lgc_icon('clock') ?> <?= esc(lang('Lgc.ptHearings')) ?></h2>
   <ul class="lc-list">
-    <?php foreach ($hearings as $h): ?>
-      <li>
+    <?php foreach ($hearings as $h): $off = $h['status'] === 'cancelled'; ?>
+      <li<?= $off ? ' class="lc-muted"' : '' ?>>
         <div class="lc-row"><strong><?= esc($h['title']) ?></strong><span class="lc-pill"><?= esc(lang('Lgc.hmode_' . $h['mode'])) ?></span></div>
-        <p style="margin:4px 0 0"><?= esc($d($h['scheduled_at'], true)) ?><?= $h['status'] === 'postponed' ? ' · ' . esc(lang('Lgc.hstatus_postponed')) : '' ?></p>
+        <p style="margin:4px 0 0"><?= esc($d($h['scheduled_at'], true)) ?><?= in_array($h['status'], ['postponed', 'cancelled'], true) ? ' · <strong>' . esc(lang('Lgc.hstatus_' . $h['status'])) . '</strong>' : '' ?></p>
+        <?php if ($off): /* Cancelada: queda la constancia, sin enlace ni indicaciones que ya no aplican. */ ?></li><?php continue; endif; ?>
         <?php if ($h['location']): ?><p class="lc-muted lc-small" style="margin:2px 0 0"><?= esc($h['location']) ?></p><?php endif; ?>
         <?php if ($h['link']): ?><p style="margin:6px 0 0"><a class="lc-btn lc-btn-ghost" href="<?= esc($h['link'], 'attr') ?>" target="_blank" rel="noopener noreferrer"><?= esc(lang('Lgc.ptJoin')) ?></a></p><?php endif; ?>
         <?php if ((int) $h['client_attendance']): ?><p class="lc-alert lc-warn lc-small" style="margin:8px 0 0"><?= esc(lang('Lgc.ptMustAttend')) ?></p><?php endif; ?>

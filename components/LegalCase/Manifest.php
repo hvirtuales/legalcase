@@ -24,7 +24,7 @@ return [
     'code'          => 'lgc',
     'name'          => 'LegalCase',
     'name_key'      => 'Lgc.compName',
-    'version'       => '1.2.0',
+    'version'       => '1.2.1',
     'description'   => 'Asuntos jurídicos, procesos, plazos, documentos y portal del cliente con comunicaciones aprobadas.',
     'author'        => 'Herramientas Virtuales',
     'icon'          => 'icon-briefcase',

@@ -98,6 +98,21 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
                                         <button name="status" value="cancelled" class="btn btn-ghost btn-sm" onclick="return confirm('<?= esc(lang('Lgc.confirmCancel'), 'js') ?>')"><?= lang('Lgc.hstatus_cancelled') ?></button>
                                     </form>
                                 <?php endif; ?>
+                                <?php if ($canWork && $acc->can('lgc.edit') && in_array($h['status'], ['scheduled', 'postponed'], true)): ?>
+                                    <details class="mt-2">
+                                        <summary class="cursor-pointer text-xs text-primary"><i class="icon icon-pencil"></i> <?= lang('Lgc.hearingEdit') ?></summary>
+                                        <form method="post" action="<?= base_url('legalcase/audiencias/editar/' . (int) $h['id']) ?>" class="mt-3 space-y-3"><?= csrf_field() ?>
+                                            <?php if ((int) $h['is_shared']): ?><div class="alert alert-info"><i class="icon icon-info-circle"></i><span><?= lang('Lgc.hearingRescheduleHint') ?></span></div><?php endif; ?>
+                                            <?= view('Components\LegalCase\Views\matters\tabs\_hearing_fields', ['h' => $h, 'pfx' => 'he' . (int) $h['id'], 'proceedings' => $proceedings, 'acc' => $acc]) ?>
+                                            <div class="flex justify-end"><button type="submit" class="btn btn-primary btn-sm"><i class="icon icon-save"></i> <?= lang('Lgc.save') ?></button></div>
+                                        </form>
+                                    </details>
+                                <?php endif; ?>
+                                <?php if ($canWork && $acc->can('lgc.delete') && !((int) $h['is_shared'] && in_array($h['status'], ['scheduled', 'postponed'], true))): ?>
+                                    <div class="mt-2 flex justify-end">
+                                        <?= view('partials/delete_button', ['action' => base_url('legalcase/audiencias/eliminar/' . (int) $h['id']), 'confirm' => lang('Lgc.confirmDelete'), 'label' => lang('Lgc.delete'), 'class' => 'btn btn-ghost btn-sm', 'icon' => 'trash', 'text' => lang('Lgc.delete')]) ?>
+                                    </div>
+                                <?php endif; ?>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -201,48 +216,7 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
                 <div class="card-body">
                     <form method="post" action="<?= base_url('legalcase/asuntos/audiencia/' . $id) ?>" class="space-y-3">
                         <?= csrf_field() ?>
-                        <div class="form-group">
-                            <label class="form-label" for="hr-title"><?= lang('Lgc.fTitle') ?> <span class="text-danger">*</span></label>
-                            <input id="hr-title" type="text" name="title" class="form-input" required maxlength="190" placeholder="<?= esc(lang('Lgc.phHearing'), 'attr') ?>">
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="form-group">
-                                <label class="form-label" for="hr-at"><?= lang('Lgc.fScheduledAt') ?> <span class="text-danger">*</span></label>
-                                <input id="hr-at" type="datetime-local" name="scheduled_at" class="form-input" required>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label" for="hr-mode"><?= lang('Lgc.fMode') ?></label>
-                                <select id="hr-mode" name="mode" class="form-select">
-                                    <?php foreach (\Components\LegalCase\Models\HearingModel::MODES as $m): ?><option value="<?= $m ?>"><?= lang('Lgc.hmode_' . $m) ?></option><?php endforeach; ?>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="hr-loc"><?= lang('Lgc.fLocation') ?></label>
-                            <input id="hr-loc" type="text" name="location" class="form-input" maxlength="255" placeholder="<?= esc(lang('Lgc.phLocation'), 'attr') ?>">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="hr-link"><?= lang('Lgc.fLink') ?></label>
-                            <input id="hr-link" type="url" name="link" class="form-input" maxlength="500" placeholder="https://">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="hr-cn"><?= lang('Lgc.fClientNotes') ?></label>
-                            <textarea id="hr-cn" name="client_notes" rows="2" class="form-textarea" placeholder="<?= esc(lang('Lgc.phClientNotes'), 'attr') ?>"></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="hr-in"><?= lang('Lgc.fInternalNotes') ?></label>
-                            <textarea id="hr-in" name="internal_notes" rows="2" class="form-textarea"></textarea>
-                        </div>
-                        <div class="form-check">
-                            <input type="checkbox" id="hr-att" name="client_attendance" value="1" class="form-check-input">
-                            <label for="hr-att" class="form-check-label"><?= lang('Lgc.clientMustAttend') ?></label>
-                        </div>
-                        <?php if ($acc->can('lgc.share')): ?>
-                            <div class="form-check">
-                                <input type="checkbox" id="hr-sh" name="is_shared" value="1" class="form-check-input">
-                                <label for="hr-sh" class="form-check-label"><?= lang('Lgc.shareHearing') ?><span class="block text-xs text-muted"><?= lang('Lgc.shareHearingHint') ?></span></label>
-                            </div>
-                        <?php endif; ?>
+                        <?= view('Components\LegalCase\Views\matters\tabs\_hearing_fields', ['h' => [], 'pfx' => 'hr', 'proceedings' => $proceedings, 'acc' => $acc]) ?>
                         <button type="submit" class="btn btn-primary btn-sm"><i class="icon icon-save"></i> <?= lang('Lgc.add') ?></button>
                     </form>
                 </div>

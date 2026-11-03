@@ -6,7 +6,7 @@
  * «Mi día»: cuatro números arriba y, debajo, lo que hay que hacer hoy — comunicación
  * vencida, plazos próximos o por validar, consultas sin responder, aprobaciones y tareas.
  *
- * @var array $metrics @var array $overdue @var array $deadlines @var array $tasks
+ * @var array $metrics @var array $overdue @var array $deadlines @var array $tasks @var array $hearings
  * @var array $threads @var array $reviews @var array $numbers @var array $users
  */
 use Components\LegalCase\Libraries\Access;
@@ -72,6 +72,26 @@ $link = fn (int $mid) => view('Components\LegalCase\Views\_matter_link', ['numbe
                             <div class="flex flex-wrap items-center gap-2"><?= $link((int) $d['matter_id']) ?> <span class="font-semibold"><?= esc($d['title']) ?></span>
                                 <?= (int) $d['is_critical'] ? '<span class="badge badge-danger">' . lang('Lgc.critical') . '</span>' : '' ?> <?= Meta::badge('deadline', $d['status']) ?></div>
                             <div class="text-xs <?= Meta::isPast($d['due_at']) ? 'font-semibold text-danger' : 'text-muted' ?>"><?= esc(Meta::date($d['due_at'])) ?> · <?= esc($users[(int) $d['assigned_to']] ?? '—') ?></div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><i class="icon icon-landmark text-primary"></i><h5 class="font-semibold"><?= lang('Lgc.hearings7') ?></h5></div>
+        <div class="card-body">
+            <?php if (!$hearings): ?>
+                <p class="text-sm text-muted"><?= lang('Lgc.noHearings') ?></p>
+            <?php else: ?>
+                <ul class="divide-y divide-line text-sm">
+                    <?php foreach ($hearings as $h): ?>
+                        <li class="py-2">
+                            <div class="flex flex-wrap items-center gap-2"><?= $link((int) $h['matter_id']) ?> <span class="font-semibold"><?= esc($h['title']) ?></span>
+                                <span class="badge badge-light"><?= lang('Lgc.hmode_' . $h['mode']) ?></span>
+                                <?= $h['status'] === 'postponed' ? '<span class="badge badge-warning">' . lang('Lgc.hstatus_postponed') . '</span>' : '' ?></div>
+                            <div class="text-xs text-muted"><?= esc(Meta::date($h['scheduled_at'])) ?><?= $h['location'] ? ' · ' . esc($h['location']) : '' ?></div>
                         </li>
                     <?php endforeach; ?>
                 </ul>

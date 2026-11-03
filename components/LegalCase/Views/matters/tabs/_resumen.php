@@ -87,7 +87,9 @@ $id = (int) $matter['id'];
         <div class="card">
             <div class="card-header flex-wrap justify-between gap-2">
                 <div class="flex items-center gap-2"><i class="icon icon-file-earmark"></i><h5 class="font-semibold"><?= lang('Lgc.engagement') ?></h5></div>
-                <a href="<?= base_url('legalcase/asuntos/contrato/' . $id) ?>" class="btn btn-ghost btn-sm"><?= lang($engagement ? 'Lgc.open' : 'Lgc.register') ?></a>
+                <?php if ($engagement || $acc->can('lgc.edit')): ?>
+                    <a href="<?= base_url('legalcase/asuntos/contrato/' . $id) ?>" class="btn btn-ghost btn-sm"><?= lang($engagement ? 'Lgc.open' : 'Lgc.register') ?></a>
+                <?php endif; ?>
             </div>
             <div class="card-body text-sm">
                 <?php if (!$engagement): ?>

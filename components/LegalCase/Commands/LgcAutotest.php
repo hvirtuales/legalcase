@@ -642,8 +642,29 @@ class LgcAutotest extends BaseCommand
         $hs->save($mx, ['title' => 'Audiencia inicial', 'scheduled_at' => date('Y-m-d H:i', strtotime('+2 days')), 'mode' => 'virtual', 'link' => 'https://meet.example/abc', 'is_shared' => 1], $accOwn, (new HearingModel())->find((int) $h->id));
         $after = (new DeliveryModel())->where('matter_id', $m->id)->where('kind', 'hearing')->countAllResults();
         $this->check('reprogramar avisa otra vez; guardar sin cambios no', $after === $before + 1, "$before → $after");
+        $cur  = static fn () => (new HearingModel())->find((int) $h->id);
+        $hin  = static fn (string $at, array $x = []) => $x + ['title' => 'Audiencia inicial', 'scheduled_at' => $at, 'mode' => 'virtual', 'link' => 'https://meet.example/abc', 'is_shared' => 1];
+        $prep = static fn () => (new TaskModel())->where('ref', 'hearing_prep:' . $h->id)->orderBy('id', 'DESC')->first();
+        $hs->save($mx, $hin(substr((string) $cur()['scheduled_at'], 0, 16), ['is_shared' => 0, 'internal_notes' => 'Editada por paralegal']), $accPara, $cur());
+        $this->check('quien no tiene lgc.share la edita sin dejar de compartirla', (int) $cur()['is_shared'] === 1 && $cur()['internal_notes'] === 'Editada por paralegal');
+        $this->check('una audiencia compartida y vigente no se elimina (se cancela)', !$hs->delete($mx, $cur(), $accOwn)->ok && $cur() !== null);
+        $hs->setStatus($mx, $cur(), 'postponed', $accOwn);
+        $this->check('aplazarla avisa al cliente y suspende la preparación',
+            (new DeliveryModel())->where('matter_id', $m->id)->where('ref_type', 'hearing_postponed')->countAllResults() === 1 && $prep()['status'] === 'cancelled');
+        $hs->save($mx, $hin(date('Y-m-d H:i', strtotime('+5 days'))), $accOwn, $cur());
+        $this->check('reprogramar una aplazada la devuelve a programada y mueve la preparación',
+            $cur()['status'] === 'scheduled' && $prep()['status'] === 'open' && str_starts_with((string) $prep()['due_at'], date('Y-m-d', strtotime('+3 days'))), json_encode([$cur()['status'], $prep()['status'], $prep()['due_at']]));
         $hs->setStatus($mx, (new HearingModel())->find((int) $h->id), 'held', $accOwn);
         $this->check('marcada como realizada, la preparación se cierra', (new TaskModel())->where('ref', 'hearing_prep:' . $h->id)->where('status', 'done')->countAllResults() === 1);
+        $hc = $hs->save($mx, $hin(date('Y-m-d H:i', strtotime('+4 days')), ['title' => 'Diligencia ZZ']), $accOwn);
+        $hs->setStatus($mx, (new HearingModel())->find((int) $hc->id), 'cancelled', $accOwn);
+        $det = $view->detail($acc, $view->matter($acc, $m->id));
+        $seen = array_values(array_filter($det['hearings'], static fn ($x) => (int) $x['id'] === (int) $hc->id));
+        $this->check('el portal muestra la cancelación y el cliente recibe aviso',
+            ($seen[0]['status'] ?? '') === 'cancelled' && (new DeliveryModel())->where('ref_type', 'hearing_cancelled')->where('ref_id', (int) $hc->id)->countAllResults() === 1);
+        $this->check('una audiencia ya cerrada sí se puede eliminar, y deja constancia',
+            $hs->delete($mx, (new HearingModel())->find((int) $hc->id), $accOwn)->ok && (new HearingModel())->find((int) $hc->id) === null
+            && (new AuditModel())->where('action', 'hearing.deleted')->where('entity_id', (int) $hc->id)->countAllResults() === 1);
 
         // ── 16. Versiones y firma electrónica ─────────────────────────────────
         $this->title('16. Versiones de documentos y firma electrónica');

@@ -6,6 +6,7 @@ use Components\LegalCase\Libraries\Clock;
 use Components\LegalCase\Libraries\Team;
 use Components\LegalCase\Models\DeadlineModel;
 use Components\LegalCase\Models\DeliveryModel;
+use Components\LegalCase\Models\HearingModel;
 use Components\LegalCase\Models\MatterModel;
 use Components\LegalCase\Models\TaskModel;
 use Components\LegalCase\Models\ThreadModel;
@@ -59,6 +60,11 @@ class Dashboard extends BaseLgc
         $threads = (new ThreadModel())->whereIn('matter_id', $ids)->whereIn('status', ['new', 'assigned'])
             ->orderBy('first_response_due_at', 'ASC')->findAll(20);
 
+        // Audiencias de hoy y los próximos 7 días (las aplazadas también: siguen pidiendo fecha).
+        $hearings = (new HearingModel())->whereIn('matter_id', $ids)->whereIn('status', ['scheduled', 'postponed'])
+            ->where('scheduled_at >=', date('Y-m-d 00:00:00'))->where('scheduled_at <=', date('Y-m-d 23:59:59', strtotime('+7 days')))
+            ->orderBy('scheduled_at', 'ASC')->findAll(20);
+
         $reviews = (new UpdateModel())->whereIn('matter_id', $ids)->whereIn('status', ['pending_review', 'approved'])
             ->orderBy('submitted_at', 'ASC')->findAll(20);
 
@@ -75,9 +81,10 @@ class Dashboard extends BaseLgc
             'overdue'   => array_slice($overdue, 0, 10),
             'deadlines' => $deadlines,
             'tasks'     => $tasks,
+            'hearings'  => $hearings,
             'threads'   => $threads,
             'reviews'   => $reviews,
-            'numbers'   => $this->numbers(array_merge($deadlines, $tasks, $threads, $reviews)),
+            'numbers'   => $this->numbers(array_merge($deadlines, $tasks, $hearings, $threads, $reviews)),
             'users'     => Team::users($this->companyId()),
         ]);
     }
@@ -96,7 +103,7 @@ class Dashboard extends BaseLgc
         }
         $deadlines = $d->orderBy('due_at', 'ASC')->findAll(300);
         $tasks     = $t->orderBy('due_at', 'ASC')->findAll(300);
-        $hearings  = (new \Components\LegalCase\Models\HearingModel())->whereIn('matter_id', $ids)->whereIn('status', ['scheduled', 'postponed'])
+        $hearings  = (new HearingModel())->whereIn('matter_id', $ids)->whereIn('status', ['scheduled', 'postponed'])
             ->where('scheduled_at >=', date('Y-m-d 00:00:00'))->orderBy('scheduled_at', 'ASC')->findAll(100);
 
         return view('Components\LegalCase\Views\agenda', [

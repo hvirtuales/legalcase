@@ -108,7 +108,7 @@ class ClientView
                 // Lista blanca: nunca las notas internas; el enlace solo si es https.
                 static fn ($h) => array_intersect_key($h, array_flip(['id', 'title', 'scheduled_at', 'mode', 'location', 'client_attendance', 'client_notes', 'status']))
                     + ['link' => preg_match('#^https://#i', (string) $h['link']) ? (string) $h['link'] : ''],
-                (new HearingModel())->where('matter_id', $mid)->where('is_shared', 1)->whereIn('status', ['scheduled', 'postponed'])
+                (new HearingModel())->where('matter_id', $mid)->where('is_shared', 1)->whereIn('status', ['scheduled', 'postponed', 'cancelled'])
                     ->where('scheduled_at >=', date('Y-m-d H:i:s', strtotime('-1 day')))->orderBy('scheduled_at', 'ASC')->findAll(20)
             ),
             'signatures' => (new SignatureModel())->where('matter_id', $mid)->where('account_id', (int) $account['id'])->orderBy('id', 'DESC')->findAll(50),

@@ -66,6 +66,7 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->post('asuntos/audiencia/(:num)', 'Work::saveHearing/$1', ['filter' => 'permission:lgc.create']);
     $routes->post('audiencias/editar/(:num)', 'Work::updateHearing/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('audiencias/estado/(:num)', 'Work::hearingStatus/$1', ['filter' => 'permission:lgc.edit']);
+    $routes->post('audiencias/eliminar/(:num)', 'Work::deleteHearing/$1', ['filter' => 'permission:lgc.delete']);
 
     // Documentos y solicitudes al cliente
     $routes->post('asuntos/documento/(:num)', 'Documents::upload/$1', ['filter' => 'permission:lgc.create']);
@@ -80,7 +81,9 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->get('firmas/evidencia/(:num)', 'Documents::evidence/$1', ['filter' => 'permission:lgc.view']);
 
     // Contrato de servicios del asunto
-    $routes->match(['GET', 'POST'], 'asuntos/contrato/(:num)', 'Engagements::edit/$1', ['filter' => 'permission:lgc.edit']);
+    // Consultar el contrato es lectura (lgc.view); registrarlo o cambiarlo, lgc.edit.
+    $routes->get('asuntos/contrato/(:num)', 'Engagements::edit/$1', ['filter' => 'permission:lgc.view']);
+    $routes->post('asuntos/contrato/(:num)', 'Engagements::edit/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('asuntos/contrato/firma/(:num)', 'Engagements::sign/$1', ['filter' => 'permission:lgc.share']);
     $routes->post('asuntos/contrato/terminar/(:num)', 'Engagements::terminate/$1', ['filter' => 'permission:lgc.edit']);
 
