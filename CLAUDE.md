@@ -271,6 +271,7 @@ partial `partials/delete_button`; nunca un `<a href>`.
 | Copropiedad | `cop` | `/copropiedad` | empresa | `copropiedad:autotest`, `copropiedad:contrato`. **Desinstalado aquí.** |
 | Directorio | `dir` | `/directorio`, `/directorio-publico` | **tenant** | Piloto de ámbito tenant: tablas con `tenant_id` y filtros `['auth','tenant']`. |
 | LeadFlow | `lfl` | `/leadflow`, `/leadflow-publico` | empresa | Captación, conversión y **gestión de expedientes** de firmas jurídicas. Docketwise es opcional. `leadflow:autotest`, `leadflow:contrato`, `leadflow:tick`, `leadflow:expedientes`. Ver su sección. |
+| LegalCase | `lgc` | `/legalcase`, `/legalcase-portal` | empresa | Asuntos jurídicos, procesos, plazos, documentos y **LegalCase Connect** (portal del cliente con actualizaciones aprobadas). Independiente (`depends: []`). `lgc:autotest`, `lgc:contrato`, `lgc:tick`. Ver su sección. |
 
 **Patrones que se repiten entre componentes** (léelos en uno antes de replicarlos en otro):
 
@@ -499,6 +500,48 @@ precalificación, scoring, actividades, agenda, timeline y conversión Lead → 
   - **Pendiente:** el `plan_field` `lfl_docketwise_enabled` y las acciones de automatización
     `open_matter` y `advance_matter_stage` (los tres disparadores ya están declarados).
 - **Fuera del MVP:** IA, WhatsApp Business API, calendarios, Meta/Google Ads, API REST pública y webhooks.
+
+### Componente LegalCase (`components/LegalCase`)
+
+Implementa el MVP (P0) del *Documento Maestro LegalCase v1.0*: asunto ≠ proceso, plazos manuales validados,
+documentos clasificados y LegalCase Connect. **Independiente**: no lee ni escribe tablas de otros componentes;
+convive con los expedientes de LeadFlow sin tocarlos.
+
+- **Acceso por asunto (`Libraries/Access`).** Los permisos `lgc.*` deciden *qué*; `Access` decide *sobre qué
+  asuntos*: `visibility=firm` lo ve todo el despacho, `team` solo el responsable, el equipo
+  (`cmp_lgc_matter_team`) y quien administra la empresa. Toda lista pasa por `scopeMatters()` y toda ficha por
+  `BaseLgc::findMatter()/findChild()`, que resuelven por empresa **y** visibilidad (anti-IDOR).
+- **`BaseLgc::_remap()`** hace valer empresa activa y `PlanGuard` en *todas* las acciones internas.
+- **Actualizaciones al cliente (`UpdateService`):** `draft → pending_review → approved → published →
+  superseded|revoked`. Política por despacho (`cmp_lgc_settings.approval_policy`): `self` (el autor publica y la
+  auto-aprobación queda registrada) o `reviewer` (aprueba otra persona). Lo publicado no se edita: se crea
+  versión (`supersedes_id`). «Sin novedades» exige fuente y fecha verificadas. Publicar exige confirmar destinatarios.
+- **Avisos (`Outbox`):** cola `cmp_lgc_deliveries` con `idem_key` UNIQUE (publicar dos veces no duplica). El
+  correo es **mínimo** («ingrese al portal»), sin contenido del caso. Falla → `failed` y `lgc:tick` reintenta
+  (máx. 5). Sin consentimiento o cuenta inactiva → `skipped`.
+- **Portal (`Libraries/Portal` + `ClientView`):** cuentas **propias** (`cmp_lgc_portal_accounts`), no `users`
+  del núcleo. Acceso por enlace de un solo uso `selector.verificador` (en BD solo el SHA-256); el GET muestra un
+  botón y el POST consume (los escáneres de correo no gastan el enlace). Sesión aparte (`lgc_portal`) revalidada
+  en cada petición, caducidad por inactividad 1 h. `ClientView` es la **única** puerta de datos del portal y
+  devuelve listas blancas de campos (nunca `strategy`, `description`, `objectives` ni `title` interno). Solo
+  `client`/`representative` pueden tener acceso, y es **por asunto** (`participants.portal_access`).
+- **Vistas del portal y correos: autosuficientes** (CSS/SVG en línea, `--lc-*`, modo oscuro por
+  `prefers-color-scheme`).
+- **Plazos:** registro manual, nacen `to_validate`; política `dual` exige dos personas distintas en los críticos.
+  El componente **no calcula términos judiciales**.
+- **Documentos:** `writable/uploads/lgc/<empresa>/`, nombre aleatorio, MIME por contenido, SHA-256 y
+  deduplicación por asunto, `classification` (`internal|privileged|review|shared`); solo `shared` llega al portal.
+  Antivirus: usa `clamdscan/clamscan` si existe en el servidor.
+- **Bitácora `cmp_lgc_audit`:** solo inserción (el modelo lanza excepción en update/delete).
+- **Esquema:** los hijos del asunto llevan `company_id` indexado pero una sola cascada (desde el asunto) y las
+  referencias a `users` van sin FK, para no crear caminos de cascada múltiples (SQL Server los rechaza).
+- **Verificado en PostgreSQL 16** (instalación, `lgc:autotest` 63/63, `lgc:contrato` 42/42, navegador real
+  claro/oscuro/390 px). El desborde horizontal a 390 px que se ve en las pantallas internas es de la barra
+  superior del núcleo (también ocurre en `/dashboard`).
+- **`view()` conserva datos entre llamadas** (`saveData = true`): a `partials/delete_button` se le pasan siempre
+  `class`, `icon` y `text`, o heredaría los de la llamada anterior.
+- **Fuera del MVP:** IA, WhatsApp, cálculo de términos, vigilancia judicial, calendarios externos, citas, pagos
+  y facturación electrónica.
 
 ### Otras piezas del núcleo
 
