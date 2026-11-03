@@ -22,9 +22,13 @@ class Documents extends BaseLgc
             return redirect()->to($this->matterUrl($matter, 'documentos'))->with('error', esc(lang('Lgc.errFile')));
         }
 
+        $class = (string) $this->post('classification', 'internal');
+        if ($class === 'shared' && !$this->acc()->can('lgc.share')) {
+            return redirect()->to($this->matterUrl($matter, 'documentos'))->with('error', esc(lang('Lgc.errNeedShare')));
+        }
         $r = (new DocumentService())->store($file, $this->companyId(), (int) $matter['id'], [
             'source'         => 'staff',
-            'classification' => (string) $this->post('classification', 'internal'),
+            'classification' => $class,
             'user_id'        => $this->acc()->userId ?: null,
         ]);
 
@@ -36,6 +40,12 @@ class Documents extends BaseLgc
         [$doc, $matter] = $this->findChild(DocumentModel::class, $id);
         if (!$doc) {
             return $this->notFound();
+        }
+        // Lo privilegiado es del equipo del asunto («necesidad de conocer»).
+        if ($doc['classification'] === 'privileged' && !$this->acc()->isInsider($matter)) {
+            Audit::log($this->companyId(), (int) $matter['id'], 'document.denied', 'document', (int) $doc['id']);
+
+            return redirect()->to($this->matterUrl($matter, 'documentos'))->with('error', esc(lang('Lgc.errPrivileged')));
         }
         $path = (new DocumentService())->absolutePath($doc);
         if (!is_file($path)) {
@@ -54,7 +64,11 @@ class Documents extends BaseLgc
             return $this->notFound();
         }
 
-        return $this->done((new DocumentService())->classify($doc, (string) $this->post('classification'), $this->acc()), $this->matterUrl($matter, 'documentos'));
+        if ($doc['classification'] === 'privileged' && !$this->acc()->isInsider($matter)) {
+            return redirect()->to($this->matterUrl($matter, 'documentos'))->with('error', esc(lang('Lgc.errPrivileged')));
+        }
+
+        return $this->done((new DocumentService())->classify($doc, (string) $this->post('classification'), $this->acc(), $this->post('confirm_privileged') === '1'), $this->matterUrl($matter, 'documentos'));
     }
 
     public function delete($id = null)

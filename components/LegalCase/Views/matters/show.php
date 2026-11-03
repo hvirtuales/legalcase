@@ -33,6 +33,9 @@ $late   = !$closed && Meta::isPast($matter['next_update_due_at']);
                     <?php if ($matter['visibility'] === 'team'): ?>
                         <span class="badge badge-secondary"><i class="icon icon-lock"></i> <?= lang('Lgc.visibility_team') ?></span>
                     <?php endif; ?>
+                    <?php if ((int) ($matter['legal_hold'] ?? 0) === 1): ?>
+                        <span class="badge badge-warning"><i class="icon icon-lock-fill"></i> <?= lang('Lgc.legalHold') ?></span>
+                    <?php endif; ?>
                     <?php if ($matter['sensitivity'] === 'high'): ?>
                         <span class="badge badge-danger"><i class="icon icon-shield-lock"></i> <?= lang('Lgc.sensitivity_high') ?></span>
                     <?php endif; ?>
@@ -48,12 +51,12 @@ $late   = !$closed && Meta::isPast($matter['next_update_due_at']);
                 </div>
             </div>
             <div class="flex flex-wrap gap-2">
-                <?php if (!$closed && $acc->can('lgc.create')): ?>
+                <?php if (!$closed && ($canWork && $acc->can('lgc.create'))): ?>
                     <a href="<?= base_url('legalcase/asuntos/actualizacion/' . $id) ?>" class="btn btn-primary btn-sm">
                         <i class="icon icon-send"></i> <?= lang('Lgc.updNew') ?>
                     </a>
                 <?php endif; ?>
-                <?php if ($acc->can('lgc.edit')): ?>
+                <?php if (($canWork && $acc->can('lgc.edit'))): ?>
                     <?php if (!$closed): ?>
                         <a href="<?= base_url('legalcase/asuntos/editar/' . $id) ?>" class="btn btn-secondary btn-sm"><i class="icon icon-pencil"></i> <?= lang('Lgc.edit') ?></a>
                         <form method="post" action="<?= base_url('legalcase/asuntos/pausa/' . $id) ?>" class="inline">
@@ -74,7 +77,16 @@ $late   = !$closed && Meta::isPast($matter['next_update_due_at']);
                         </form>
                     <?php endif; ?>
                 <?php endif; ?>
-                <?php if ($acc->can('lgc.delete')): ?>
+                <?php if ($canWork && $acc->can('lgc.configure')): ?>
+                    <form method="post" action="<?= base_url('legalcase/asuntos/bloqueo/' . $id) ?>" class="inline"
+                        onsubmit="return confirm('<?= esc(lang((int) ($matter['legal_hold'] ?? 0) === 1 ? 'Lgc.confirmHoldOff' : 'Lgc.confirmHoldOn'), 'js') ?>')">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="btn btn-ghost btn-sm" title="<?= esc(lang('Lgc.legalHoldHint'), 'attr') ?>">
+                            <i class="icon icon-lock"></i> <?= lang((int) ($matter['legal_hold'] ?? 0) === 1 ? 'Lgc.holdOff' : 'Lgc.holdOn') ?>
+                        </button>
+                    </form>
+                <?php endif; ?>
+                <?php if (($canWork && $acc->can('lgc.delete'))): ?>
                     <?= view('partials/delete_button', [
                         'action'  => base_url('legalcase/asuntos/eliminar/' . $id),
                         'confirm' => lang('Lgc.confirmDeleteMatter', [$matter['number']]),
@@ -86,24 +98,47 @@ $late   = !$closed && Meta::isPast($matter['next_update_due_at']);
                 <?php endif; ?>
             </div>
         </div>
+        <?php if (!$canWork && !$closed): ?>
+            <p class="mt-3 flex items-center gap-2 text-sm text-muted"><i class="icon icon-eye"></i> <?= lang($acc->isSupport() ? 'Lgc.readOnlySupport' : 'Lgc.readOnlyNotTeam') ?></p>
+        <?php endif; ?>
         <?php if ($closed): ?>
             <p class="mt-3 text-sm text-muted"><?= lang('Lgc.closedOn', [Meta::date($matter['closed_at'], false), lang('Lgc.reason_' . ($matter['close_reason'] ?: 'other'))]) ?></p>
         <?php endif; ?>
     </div>
 </div>
 
-<?php if (!$closed && $acc->can('lgc.edit')): ?>
+<?php if (!$closed && ($canWork && $acc->can('lgc.edit'))): ?>
     <dialog id="dlg-close" class="m-auto w-full max-w-md rounded-lg border border-line bg-surface p-0 text-ink shadow-lg">
         <form method="post" action="<?= base_url('legalcase/asuntos/cerrar/' . $id) ?>" class="p-5">
             <?= csrf_field() ?>
             <h5 class="mb-2 font-semibold"><?= lang('Lgc.closeTitle') ?></h5>
             <p class="mb-3 text-sm text-muted"><?= lang('Lgc.closeHint') ?></p>
             <label for="close_reason" class="form-label"><?= lang('Lgc.fCloseReason') ?> <span class="text-danger">*</span></label>
+            <?php if ($pending): ?>
+                <div class="alert alert-warning mb-3">
+                    <i class="icon icon-exclamation-circle"></i>
+                    <div>
+                        <strong><?= lang('Lgc.closePendingTitle') ?></strong>
+                        <ul class="mt-1 text-sm">
+                            <?php foreach ($pending as $k => $n): ?>
+                                <li><?= lang('Lgc.pending_' . $k, [(int) $n]) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p class="mt-1 text-xs"><?= lang('Lgc.closePendingHint') ?></p>
+                    </div>
+                </div>
+            <?php endif; ?>
             <select id="close_reason" name="close_reason" class="form-select" required>
                 <?php foreach (MatterModel::CLOSE_REASONS as $r): ?>
                     <option value="<?= $r ?>"><?= lang('Lgc.reason_' . $r) ?></option>
                 <?php endforeach; ?>
             </select>
+            <?php if ($pending): ?>
+                <div class="form-check mt-3">
+                    <input type="checkbox" id="confirm_pending" name="confirm_pending" value="1" class="form-check-input" required>
+                    <label for="confirm_pending" class="form-check-label"><?= lang('Lgc.confirmPending') ?></label>
+                </div>
+            <?php endif; ?>
             <div class="mt-4 flex justify-end gap-2">
                 <button type="button" class="btn btn-ghost" onclick="this.closest('dialog').close()"><?= lang('Lgc.cancel') ?></button>
                 <button type="submit" class="btn btn-primary"><?= lang('Lgc.close') ?></button>

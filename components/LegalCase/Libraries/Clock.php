@@ -22,10 +22,10 @@ class Clock
         $this->outbox ??= new Outbox();
     }
 
-    /** @return array{update_due:int,sent:int,failed:int,skipped:int,tokens:int} */
+    /** @return array{update_due:int,deadline_alerts:int,sent:int,failed:int,skipped:int,tokens:int} */
     public function run(?int $companyId = null): array
     {
-        $out = ['update_due' => $this->dueUpdates($companyId)];
+        $out = ['update_due' => $this->dueUpdates($companyId), 'deadline_alerts' => $this->deadlineAlerts($companyId)];
         $out += $this->outbox->dispatch(50, $companyId);
 
         $db = db_connect();
@@ -71,6 +71,44 @@ class Clock
         }
 
         return $created;
+    }
+
+    /** Ventanas de aviso de vencimiento, en días. */
+    public const ALERT_WINDOWS = [7, 3, 1, 0];
+
+    /**
+     * Avisa al responsable de cada plazo ABIERTO que entra en una ventana (7, 3, 1 días o
+     * vencido). Un aviso por plazo y ventana (idempotente). Un plazo «por validar» también
+     * avisa: precisamente porque su fecha no está confirmada.
+     */
+    public function deadlineAlerts(?int $companyId = null): int
+    {
+        $q = db_connect()->table('cmp_lgc_deadlines d')
+            ->select('d.id, d.company_id, d.matter_id, d.due_at, d.assigned_to, m.lead_lawyer_id')
+            ->join('cmp_lgc_matters m', 'm.id = d.matter_id')
+            ->whereIn('d.status', ['to_validate', 'validated'])
+            ->where('d.deleted_at', null)
+            ->where('m.deleted_at', null)
+            ->where('d.due_at <=', date('Y-m-d H:i:s', strtotime('+7 days')));
+        if ($companyId) {
+            $q->where('d.company_id', $companyId);
+        }
+        $sent = 0;
+        foreach ($q->get()->getResultArray() as $d) {
+            $left   = (strtotime((string) $d['due_at']) - time()) / 86400;
+            $window = 7;
+            foreach (self::ALERT_WINDOWS as $w) {
+                if ($left <= $w) {
+                    $window = $w;
+                }
+            }
+            $who = (int) ($d['assigned_to'] ?: $d['lead_lawyer_id']) ?: null;
+            if ($this->outbox->notifyStaff((int) $d['company_id'], (int) $d['matter_id'], $who, 'deadline', 'deadline', (int) $d['id'], 'w' . $window)) {
+                $sent++;
+            }
+        }
+
+        return $sent;
     }
 
     /** Asuntos con la comunicación comprometida vencida (§6.12 HC-C09). */

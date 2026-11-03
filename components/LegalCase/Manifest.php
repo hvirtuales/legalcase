@@ -24,7 +24,7 @@ return [
     'code'          => 'lgc',
     'name'          => 'LegalCase',
     'name_key'      => 'Lgc.compName',
-    'version'       => '1.0.0',
+    'version'       => '1.1.0',
     'description'   => 'Asuntos jurídicos, procesos, plazos, documentos y portal del cliente con comunicaciones aprobadas.',
     'author'        => 'Herramientas Virtuales',
     'icon'          => 'icon-briefcase',
@@ -42,9 +42,13 @@ return [
     'permissions'   => [
         'lgc.view'      => 'Ver asuntos, contactos, agenda, documentos y bandeja de LegalCase',
         'lgc.create'    => 'Registrar contactos, asuntos, procesos, actuaciones, plazos, tareas, documentos y borradores',
-        'lgc.edit'      => 'Editar asuntos y sus registros, responder mensajes, revisar documentos y gestionar el acceso al portal',
+        'lgc.edit'      => 'Editar asuntos y sus registros, redactar respuestas (sujetas a revisión sin lgc.share) y revisar documentos',
         'lgc.delete'    => 'Eliminar contactos, asuntos y sus registros',
         'lgc.approve'   => 'Aprobar, publicar y revocar actualizaciones al cliente y validar plazos',
+        // Lo que sale hacia el cliente o hacia terceros es decisión del abogado (deber de
+        // supervisión del personal no abogado): compartir documentos, dar o quitar acceso
+        // al portal y enviar mensajes sin revisión previa.
+        'lgc.share'     => 'Compartir documentos con el cliente, gestionar su acceso al portal y enviarle mensajes sin revisión',
         'lgc.configure' => 'Configurar numeración, políticas de aprobación, plazos y portal',
     ],
 

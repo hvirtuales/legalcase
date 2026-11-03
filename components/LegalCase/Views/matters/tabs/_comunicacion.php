@@ -17,12 +17,12 @@ $open = $matter['status'] !== 'closed';
         <div class="card">
             <div class="card-header flex-wrap justify-between gap-2">
                 <div class="flex items-center gap-2"><i class="icon icon-send"></i><h5 class="font-semibold"><?= lang('Lgc.updates') ?></h5></div>
-                <?php if ($open && $acc->can('lgc.create')): ?>
+                <?php if ($open && ($canWork && $acc->can('lgc.create'))): ?>
                     <div class="flex flex-wrap gap-2">
                         <a href="<?= base_url('legalcase/asuntos/actualizacion/' . $id) ?>" class="btn btn-primary btn-sm"><i class="icon icon-plus-circle"></i> <?= lang('Lgc.updNew') ?></a>
                         <a href="<?= base_url('legalcase/asuntos/actualizacion/' . $id . '?tipo=no_news') ?>" class="btn btn-secondary btn-sm"><i class="icon icon-history"></i> <?= lang('Lgc.updNoNews') ?></a>
                     </div>
-                <?php elseif (!$open && $acc->can('lgc.create')): ?>
+                <?php elseif (!$open && ($canWork && $acc->can('lgc.create'))): ?>
                     <a href="<?= base_url('legalcase/asuntos/actualizacion/' . $id . '?tipo=closing') ?>" class="btn btn-secondary btn-sm"><i class="icon icon-check-circle"></i> <?= lang('Lgc.updClosing') ?></a>
                 <?php endif; ?>
             </div>
@@ -85,7 +85,7 @@ $open = $matter['status'] !== 'closed';
             <div class="card-header"><i class="icon icon-clock-history"></i><h5 class="font-semibold"><?= lang('Lgc.planTitle') ?></h5></div>
             <div class="card-body">
                 <p class="mb-3 text-xs text-muted"><?= lang('Lgc.planHint') ?></p>
-                <?php if ($acc->can('lgc.edit')): ?>
+                <?php if (($canWork && $acc->can('lgc.edit'))): ?>
                     <form method="post" action="<?= base_url('legalcase/asuntos/plan/' . $id) ?>" class="space-y-3">
                         <?= csrf_field() ?>
                         <div class="form-group">

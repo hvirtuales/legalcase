@@ -17,8 +17,8 @@ final class Result
         return new self(true, $message, $id, $data);
     }
 
-    public static function fail(string $message): self
+    public static function fail(string $message, array $data = []): self
     {
-        return new self(false, $message);
+        return new self(false, $message, null, $data);
     }
 }

@@ -73,6 +73,23 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
                 </fieldset>
 
                 <fieldset class="form-section">
+                    <legend class="form-section-title"><i class="icon icon-shield-check"></i> <?= lang('Lgc.secPrivacy') ?></legend>
+                    <p class="form-section-hint"><?= lang('Lgc.secPrivacyHint', [esc((string) ($row['privacy_version'] ?? '1'))]) ?></p>
+                    <textarea id="privacy_text" name="privacy_text" rows="8" class="form-textarea" aria-label="<?= esc(lang('Lgc.secPrivacy'), 'attr') ?>"
+                        placeholder="<?= esc(lang('Lgc.phPrivacy'), 'attr') ?>"><?= esc($v('privacy_text')) ?></textarea>
+                    <small class="form-hint"><?= lang('Lgc.privacyTextHint') ?></small>
+                </fieldset>
+
+                <fieldset class="form-section">
+                    <legend class="form-section-title"><?= lang('Lgc.secRetention') ?></legend>
+                    <p class="form-section-hint"><?= lang('Lgc.secRetentionHint') ?></p>
+                    <div class="form-group">
+                        <label for="retention_years" class="form-label"><?= lang('Lgc.fRetentionYears') ?></label>
+                        <input type="number" id="retention_years" name="retention_years" class="form-input" min="1" max="50" value="<?= (int) $v('retention_years', 10) ?>">
+                    </div>
+                </fieldset>
+
+                <fieldset class="form-section">
                     <legend class="form-section-title"><?= lang('Lgc.secNumbering') ?></legend>
                     <p class="form-section-hint"><?= lang('Lgc.secNumberingHint') ?></p>
                     <div class="form-group">
@@ -85,6 +102,76 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
                 <div class="mt-4 flex justify-end">
                     <button type="submit" class="btn btn-primary"><i class="icon icon-save"></i> <?= lang('Lgc.save') ?></button>
                 </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="mx-auto mt-4 grid max-w-3xl gap-4">
+    <div class="card" id="soporte">
+        <div class="card-header"><i class="icon icon-life-preserver"></i><h5 class="font-semibold"><?= lang('Lgc.supportTitle') ?></h5></div>
+        <div class="card-body">
+            <p class="mb-3 text-sm text-muted"><?= lang('Lgc.supportHint') ?></p>
+            <form method="post" action="<?= base_url('legalcase/configuracion/soporte') ?>" class="grid gap-3 md:grid-cols-3">
+                <?= csrf_field() ?>
+                <div class="form-group">
+                    <label for="sp-who" class="form-label"><?= lang('Lgc.fSupportWho') ?></label>
+                    <input id="sp-who" type="text" name="who" class="form-input" required maxlength="100" placeholder="<?= esc(lang('Lgc.phSupportWho'), 'attr') ?>">
+                </div>
+                <div class="form-group">
+                    <label for="sp-h" class="form-label"><?= lang('Lgc.fSupportHours') ?></label>
+                    <input id="sp-h" type="number" name="hours" class="form-input" min="1" max="72" value="4">
+                </div>
+                <div class="form-group md:col-span-3">
+                    <label for="sp-r" class="form-label"><?= lang('Lgc.fSupportReason') ?> <span class="text-danger">*</span></label>
+                    <input id="sp-r" type="text" name="reason" class="form-input" required minlength="10" maxlength="255" placeholder="<?= esc(lang('Lgc.phSupportReason'), 'attr') ?>">
+                </div>
+                <div class="md:col-span-3"><button type="submit" class="btn btn-secondary btn-sm"><i class="icon icon-key"></i> <?= lang('Lgc.grantSupport') ?></button></div>
+            </form>
+            <?php if ($grants): ?>
+                <div class="table-card mt-4 overflow-x-auto">
+                    <table class="table">
+                        <thead><tr><th><?= lang('Lgc.fUser') ?></th><th><?= lang('Lgc.fSupportReason') ?></th><th><?= lang('Lgc.fExpires') ?></th><th></th></tr></thead>
+                        <tbody>
+                        <?php foreach ($grants as $g): $live = !$g['revoked_at'] && strtotime((string) $g['expires_at']) > time(); ?>
+                            <tr>
+                                <td><?= esc($g['username']) ?></td>
+                                <td class="max-w-xs truncate text-xs"><?= esc($g['reason']) ?></td>
+                                <td class="text-xs"><?= esc((string) $g['expires_at']) ?> <?= $live ? '<span class="badge badge-success">' . lang('Lgc.active') . '</span>' : '<span class="badge badge-secondary">' . lang('Lgc.inactive') . '</span>' ?></td>
+                                <td class="text-right">
+                                    <?php if ($live): ?>
+                                        <form method="post" action="<?= base_url('legalcase/configuracion/soporte/revocar/' . (int) $g['id']) ?>"><?= csrf_field() ?>
+                                            <button class="btn btn-ghost btn-sm"><?= lang('Lgc.revokeAccess') ?></button></form>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="card" id="reasignar">
+        <div class="card-header"><i class="icon icon-arrow-repeat"></i><h5 class="font-semibold"><?= lang('Lgc.reassignTitle') ?></h5></div>
+        <div class="card-body">
+            <p class="mb-3 text-sm text-muted"><?= lang('Lgc.reassignHint') ?></p>
+            <form method="post" action="<?= base_url('legalcase/configuracion/reasignar') ?>" class="grid gap-3 md:grid-cols-2"
+                onsubmit="return confirm('<?= esc(lang('Lgc.confirmReassign'), 'js') ?>')">
+                <?= csrf_field() ?>
+                <div class="form-group">
+                    <label for="ra-from" class="form-label"><?= lang('Lgc.fFromUser') ?></label>
+                    <select id="ra-from" name="from_user" class="form-select" required>
+                        <?php foreach ($holders as $uid => $name): ?><option value="<?= (int) $uid ?>"><?= esc($name) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ra-to" class="form-label"><?= lang('Lgc.fToUser') ?></label>
+                    <select id="ra-to" name="to_user" class="form-select" required>
+                        <?php foreach ($users as $uid => $name): ?><option value="<?= (int) $uid ?>"><?= esc($name) ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="md:col-span-2"><button type="submit" class="btn btn-secondary btn-sm"><i class="icon icon-arrow-repeat"></i> <?= lang('Lgc.reassign') ?></button></div>
             </form>
         </div>
     </div>

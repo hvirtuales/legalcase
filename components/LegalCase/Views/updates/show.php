@@ -17,10 +17,10 @@ $id       = (int) $u['id'];
 $editable = in_array($u['status'], ['draft', 'pending_review'], true);
 $cid      = (int) $matter['company_id'];
 $isAuthor = (int) $u['author_id'] === $acc->userId;
-$canPub   = $acc->can('lgc.approve') && (
+$canPub   = ($canWork && $acc->can('lgc.approve')) && (
     $u['status'] === 'approved' || ($policy === 'self' && $editable)
 );
-$canApprove = $acc->can('lgc.approve') && $u['status'] === 'pending_review' && !($policy === 'reviewer' && $isAuthor);
+$canApprove = ($canWork && $acc->can('lgc.approve')) && $u['status'] === 'pending_review' && !($policy === 'reviewer' && $isAuthor);
 ?>
 <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
     <div class="flex items-center gap-3">
@@ -34,10 +34,10 @@ $canApprove = $acc->can('lgc.approve') && $u['status'] === 'pending_review' && !
         </div>
     </div>
     <div class="flex flex-wrap gap-2">
-        <?php if ($editable && $acc->can('lgc.edit')): ?>
+        <?php if ($editable && ($canWork && $acc->can('lgc.edit'))): ?>
             <a href="<?= base_url('legalcase/actualizaciones/editar/' . $id) ?>" class="btn btn-secondary btn-sm"><i class="icon icon-pencil"></i> <?= lang('Lgc.edit') ?></a>
         <?php endif; ?>
-        <?php if ($u['status'] === 'draft' && $acc->can('lgc.edit')): ?>
+        <?php if ($u['status'] === 'draft' && ($canWork && $acc->can('lgc.edit'))): ?>
             <form method="post" action="<?= base_url('legalcase/actualizaciones/enviar/' . $id) ?>"><?= csrf_field() ?>
                 <button class="btn btn-secondary btn-sm"><i class="icon icon-send"></i> <?= lang('Lgc.submitReview') ?></button></form>
         <?php endif; ?>
@@ -45,11 +45,11 @@ $canApprove = $acc->can('lgc.approve') && $u['status'] === 'pending_review' && !
             <form method="post" action="<?= base_url('legalcase/actualizaciones/aprobar/' . $id) ?>"><?= csrf_field() ?>
                 <button class="btn btn-success btn-sm"><i class="icon icon-check-circle"></i> <?= lang('Lgc.approve') ?></button></form>
         <?php endif; ?>
-        <?php if ($u['status'] === 'published' && $acc->can('lgc.edit')): ?>
+        <?php if ($u['status'] === 'published' && ($canWork && $acc->can('lgc.edit'))): ?>
             <form method="post" action="<?= base_url('legalcase/actualizaciones/revisar/' . $id) ?>"><?= csrf_field() ?>
                 <button class="btn btn-secondary btn-sm"><i class="icon icon-pencil-square"></i> <?= lang('Lgc.newVersion') ?></button></form>
         <?php endif; ?>
-        <?php if ($editable && $acc->can('lgc.delete')): ?>
+        <?php if ($editable && ($canWork && $acc->can('lgc.delete'))): ?>
             <?= view('partials/delete_button', ['action' => base_url('legalcase/actualizaciones/eliminar/' . $id), 'confirm' => lang('Lgc.confirmDelete'), 'label' => lang('Lgc.delete'), 'class' => 'btn btn-danger btn-sm', 'icon' => 'trash', 'text' => '']) ?>
         <?php endif; ?>
     </div>
@@ -129,7 +129,7 @@ $canApprove = $acc->can('lgc.approve') && $u['status'] === 'pending_review' && !
             <div class="alert alert-info"><i class="icon icon-info-circle"></i><span><?= lang('Lgc.waitingReviewer') ?></span></div>
         <?php endif; ?>
 
-        <?php if (in_array($u['status'], ['pending_review', 'approved'], true) && $acc->can('lgc.approve')): ?>
+        <?php if (in_array($u['status'], ['pending_review', 'approved'], true) && ($canWork && $acc->can('lgc.approve'))): ?>
             <div class="card">
                 <div class="card-header"><i class="icon icon-arrow-counterclockwise"></i><h5 class="font-semibold"><?= lang('Lgc.sendBack') ?></h5></div>
                 <div class="card-body">
@@ -141,7 +141,7 @@ $canApprove = $acc->can('lgc.approve') && $u['status'] === 'pending_review' && !
             </div>
         <?php endif; ?>
 
-        <?php if ($u['status'] === 'published' && $acc->can('lgc.approve')): ?>
+        <?php if ($u['status'] === 'published' && ($canWork && $acc->can('lgc.approve'))): ?>
             <div class="card">
                 <div class="card-header"><i class="icon icon-x-circle"></i><h5 class="font-semibold"><?= lang('Lgc.revoke') ?></h5></div>
                 <div class="card-body">

@@ -104,6 +104,37 @@ $v = static fn (string $k, $d = '') => old($k, $row[$k] ?? $d);
                 </fieldset>
 
                 <fieldset class="form-section">
+                    <legend class="form-section-title"><i class="icon icon-shield-check"></i> <?= lang('Lgc.secConsent') ?></legend>
+                    <p class="form-section-hint"><?= lang('Lgc.secConsentHint') ?></p>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div class="form-group">
+                            <label for="consent_status" class="form-label"><?= lang('Lgc.fConsentStatus') ?></label>
+                            <select id="consent_status" name="consent_status" class="form-select">
+                                <?php foreach (ContactModel::CONSENT_STATUSES as $c): ?>
+                                    <option value="<?= $c ?>" <?= $v('consent_status', 'none') === $c ? 'selected' : '' ?>><?= lang('Lgc.consent_' . $c) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (!empty($row['consent_at'])): ?>
+                                <small class="form-hint"><?= lang('Lgc.consentSince', [esc((string) $row['consent_at']), esc((string) ($row['consent_version'] ?: '—'))]) ?></small>
+                            <?php endif; ?>
+                        </div>
+                        <div class="form-group">
+                            <label for="consent_method" class="form-label"><?= lang('Lgc.fConsentMethod') ?></label>
+                            <select id="consent_method" name="consent_method" class="form-select">
+                                <option value=""><?= lang('Lgc.none') ?></option>
+                                <?php foreach (ContactModel::CONSENT_METHODS as $c): ?>
+                                    <option value="<?= $c ?>" <?= $v('consent_method') === $c ? 'selected' : '' ?>><?= lang('Lgc.cmethod_' . $c) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="consent_evidence" class="form-label"><?= lang('Lgc.fConsentEvidence') ?></label>
+                        <input type="text" id="consent_evidence" name="consent_evidence" class="form-input" maxlength="255" value="<?= esc($v('consent_evidence'), 'attr') ?>" placeholder="<?= esc(lang('Lgc.phConsentEvidence'), 'attr') ?>">
+                    </div>
+                </fieldset>
+
+                <fieldset class="form-section">
                     <legend class="form-section-title"><?= lang('Lgc.secInternal') ?></legend>
                     <p class="form-section-hint"><?= lang('Lgc.secInternalHint') ?></p>
                     <textarea id="notes" name="notes" rows="3" class="form-textarea"><?= esc($v('notes')) ?></textarea>

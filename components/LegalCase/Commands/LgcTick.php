@@ -27,8 +27,8 @@ class LgcTick extends BaseCommand
         $out     = (new Clock())->run($company ? (int) $company : null);
 
         CLI::write(sprintf(
-            'LegalCase: %d recordatorio(s) de comunicación · %d aviso(s) enviado(s) · %d fallido(s) · %d omitido(s) · %d enlace(s) caducado(s) eliminados',
-            $out['update_due'], $out['sent'], $out['failed'], $out['skipped'], $out['tokens']
+            'LegalCase: %d recordatorio(s) de comunicación · %d alerta(s) de plazo · %d aviso(s) enviado(s) · %d fallido(s) · %d omitido(s) · %d enlace(s) caducado(s) eliminados',
+            $out['update_due'], $out['deadline_alerts'], $out['sent'], $out['failed'], $out['skipped'], $out['tokens']
         ), 'green');
     }
 }

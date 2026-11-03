@@ -8,7 +8,7 @@ class SettingsModel extends BaseLgcModel
     protected $table          = 'cmp_lgc_settings';
     protected $useSoftDeletes = false;
     protected $useTimestamps  = true;
-    protected $allowedFields  = ['company_id', 'matter_prefix', 'matter_sequence', 'approval_policy', 'deadline_policy', 'default_cadence_days', 'response_sla_hours', 'portal_enabled', 'notify_email', 'portal_help'];
+    protected $allowedFields  = ['company_id', 'matter_prefix', 'matter_sequence', 'approval_policy', 'deadline_policy', 'default_cadence_days', 'response_sla_hours', 'portal_enabled', 'notify_email', 'portal_help', 'privacy_version', 'privacy_text', 'retention_years'];
 
     public const APPROVAL_POLICIES = ['self', 'reviewer'];
     public const DEADLINE_POLICIES = ['single', 'dual'];

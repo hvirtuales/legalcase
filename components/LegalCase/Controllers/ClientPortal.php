@@ -56,12 +56,59 @@ class ClientPortal extends BaseController
         ]);
     }
 
+    /**
+     * La cuenta autenticada, revalidada. Si aún no aceptó el aviso de privacidad vigente,
+     * `$this->privacyPending` queda en true y la acción debe mostrar el aviso en su lugar:
+     * sin autorización previa e informada no se tratan sus datos (Ley 1581, art. 9).
+     */
+    private bool $privacyPending = false;
+
     private function requireAccount()
     {
         $account = $this->portal->current();
         $this->prepare($account);
+        $this->privacyPending = $account !== null && $this->portal->needsPrivacy($account);
 
         return $account;
+    }
+
+    private function privacyPage(array $account)
+    {
+        [$version, $text] = Portal::privacy((int) $account['company_id']);
+
+        return $this->page('privacy', ['title' => lang('Lgc.ptPrivacyTitle'), 'version' => $version, 'text' => $text], $account);
+    }
+
+    /** POST — acepta el aviso de privacidad vigente. */
+    public function privacy()
+    {
+        $account = $this->requireAccount();
+        if (!$account) {
+            return redirect()->to(Portal::url());
+        }
+        if ($this->request->getPost('accept') !== '1') {
+            return $this->privacyPage($account);
+        }
+        $this->portal->acceptPrivacy($account);
+
+        return redirect()->to(Portal::url())->with('lgc_ok', lang('Lgc.ptPrivacyAccepted'));
+    }
+
+    /** POST — solicitud de derechos sobre datos personales (consulta, rectificación, supresión…). */
+    public function dataRights()
+    {
+        $account = $this->requireAccount();
+        if (!$account || $this->privacyPending) {
+            return redirect()->to(Portal::url());
+        }
+        $matters = $this->view->matters($account);
+        $matter  = $matters ? $this->view->matter($account, (int) $matters[0]['id']) : null;
+        if (!$matter) {
+            return redirect()->to(Portal::url())->with('lgc_err', lang('Lgc.ptNotFound'));
+        }
+        $r = (new MessageService())->dataRightsRequest($account, $matter, (string) $this->request->getPost('right'), (string) $this->request->getPost('detail'));
+
+        return redirect()->to(Portal::url())->with($r->ok ? 'lgc_ok' : 'lgc_err', $r->ok ? lang('Lgc.ptDataRightsSent') : $r->message);
     }
 
     // ------------------------------------------------------------------ acceso
@@ -71,6 +118,9 @@ class ClientPortal extends BaseController
         $account = $this->requireAccount();
         if (!$account) {
             return $this->page('login', ['title' => lang('Lgc.ptLoginTitle')]);
+        }
+        if ($this->privacyPending) {
+            return $this->privacyPage($account);
         }
         $settings = (new SettingsModel())->forCompanyOrDefault((int) $account['company_id']);
 
@@ -129,7 +179,7 @@ class ClientPortal extends BaseController
     public function matter($id = null)
     {
         $account = $this->requireAccount();
-        if (!$account) {
+        if (!$account || $this->privacyPending) {
             return redirect()->to(Portal::url());
         }
         $matter = $this->view->matter($account, (int) $id);
@@ -148,11 +198,16 @@ class ClientPortal extends BaseController
             return redirect()->to(Portal::url());
         }
         $matter = $this->view->matter($account, (int) $id);
-        if (!$matter || $matter['status'] === 'closed') {
+        if ($this->privacyPending || !$matter || $matter['status'] === 'closed') {
             return redirect()->to(Portal::url())->with('lgc_err', lang('Lgc.ptNotFound'));
         }
-        $threadId = (int) $this->request->getPost('thread_id') ?: null;
-        $r = (new MessageService())->clientWrites($account, $matter, $threadId, (string) $this->request->getPost('subject'), (string) $this->request->getPost('body'));
+        // Solo se responde en un hilo propio o compartido: el de otro cocliente no existe para esta cuenta.
+        $threadId = (int) $this->request->getPost('thread_id');
+        $thread   = $threadId ? $this->view->thread($account, (int) $matter['id'], $threadId) : null;
+        if ($threadId && !$thread) {
+            return redirect()->to(Portal::url('asunto/' . (int) $matter['id']))->with('lgc_err', lang('Lgc.ptNotFound'));
+        }
+        $r = (new MessageService())->clientWrites($account, $matter, $thread, (string) $this->request->getPost('subject'), (string) $this->request->getPost('body'));
 
         return redirect()->to(Portal::url('asunto/' . (int) $matter['id']) . '#mensajes')->with($r->ok ? 'lgc_ok' : 'lgc_err', $r->message);
     }
@@ -163,7 +218,7 @@ class ClientPortal extends BaseController
         if (!$account) {
             return redirect()->to(Portal::url());
         }
-        $req = $this->view->request($account, (int) $requestId);
+        $req = $this->privacyPending ? null : $this->view->request($account, (int) $requestId);
         if (!$req) {
             return redirect()->to(Portal::url())->with('lgc_err', lang('Lgc.ptNotFound'));
         }
@@ -190,7 +245,7 @@ class ClientPortal extends BaseController
         if (!$account) {
             return redirect()->to(Portal::url());
         }
-        $doc = $this->view->document($account, (int) $id);
+        $doc = $this->privacyPending ? null : $this->view->document($account, (int) $id);
         $path = $doc ? (new DocumentService())->absolutePath($doc) : '';
         if (!$doc || !is_file($path)) {
             return $this->response->setStatusCode(404)->setBody($this->page('invalid', ['title' => lang('Lgc.ptNotFound'), 'notFound' => true], $account));

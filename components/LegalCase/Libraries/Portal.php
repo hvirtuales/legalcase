@@ -53,6 +53,10 @@ class Portal
         if (!(int) $settings['portal_enabled']) {
             return Result::fail(lang('Lgc.errPortalDisabled'));
         }
+        // El representante solo accede con un poder acreditado y vigente.
+        if ($participant['role'] === 'representative' && !self::authorityValid($participant)) {
+            return Result::fail(lang('Lgc.errAuthorityMissing'));
+        }
         $contact = (new ContactModel())->own($acc->companyId, (int) $participant['contact_id']);
         $email   = strtolower(trim((string) ($contact['email'] ?? '')));
         if (!$contact || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -112,6 +116,55 @@ class Portal
         Audit::log($companyId, null, 'portal.account_blocked', 'account', $accountId);
 
         return Result::ok(lang('Lgc.okPortalBlocked'));
+    }
+
+    /** ¿El poder del representante está acreditado (documento) y vigente? */
+    public static function authorityValid(array $participant): bool
+    {
+        if (($participant['role'] ?? '') !== 'representative') {
+            return true;
+        }
+        if (empty($participant['authority_document_id'])) {
+            return false;
+        }
+
+        return empty($participant['authority_until']) || strtotime((string) $participant['authority_until'] . ' 23:59:59') >= time();
+    }
+
+    // ------------------------------------------------------------------ privacidad (Ley 1581)
+
+    /** Aviso de privacidad vigente del despacho: [versión, texto]. */
+    public static function privacy(int $companyId): array
+    {
+        $s    = (new SettingsModel())->forCompanyOrDefault($companyId);
+        $text = trim((string) ($s['privacy_text'] ?? ''));
+
+        return [(string) ($s['privacy_version'] ?? '1') ?: '1', $text];
+    }
+
+    /** ¿La cuenta debe aceptar (o volver a aceptar) el aviso de privacidad? */
+    public function needsPrivacy(array $account): bool
+    {
+        [$version] = self::privacy((int) $account['company_id']);
+
+        return (string) ($account['privacy_version'] ?? '') !== $version || empty($account['privacy_accepted_at']);
+    }
+
+    /**
+     * Registra la autorización: en la cuenta (versión, fecha, IP) y en el contacto como
+     * autorización obtenida por el portal. Es la prueba de la autorización previa e informada.
+     */
+    public function acceptPrivacy(array $account): void
+    {
+        [$version] = self::privacy((int) $account['company_id']);
+        $now = date('Y-m-d H:i:s');
+        $ip  = is_cli() ? '' : mb_substr((string) service('request')->getIPAddress(), 0, 45);
+        (new PortalAccountModel())->update((int) $account['id'], ['privacy_version' => $version, 'privacy_accepted_at' => $now, 'privacy_ip' => $ip]);
+        (new ContactModel())->where('company_id', (int) $account['company_id'])->update((int) $account['contact_id'], [
+            'consent_status' => 'granted', 'consent_at' => $now, 'consent_method' => 'portal',
+            'consent_evidence' => mb_substr('portal:' . (int) $account['id'] . ' ip:' . $ip, 0, 255), 'consent_version' => $version,
+        ]);
+        Audit::log((int) $account['company_id'], null, 'portal.privacy_accepted', 'account', (int) $account['id'], ['version' => $version], 'portal', (int) $account['id']);
     }
 
     // ------------------------------------------------------------------ enlaces

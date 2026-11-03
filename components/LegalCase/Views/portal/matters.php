@@ -41,6 +41,23 @@ ob_start(); ?>
 <?php endif; ?>
 
 <details class="lc-card">
+  <summary><?= esc(lang('Lgc.ptDataRights')) ?></summary>
+  <p class="lc-muted lc-small"><?= esc(lang('Lgc.ptDataRightsHint')) ?></p>
+  <form method="post" action="<?= esc(Portal::url('datos'), 'attr') ?>">
+    <?= csrf_field() ?>
+    <label class="lc-label" for="right"><?= esc(lang('Lgc.ptDataRightsType')) ?></label>
+    <select class="lc-in" id="right" name="right">
+      <?php foreach (array_keys(\Components\LegalCase\Libraries\MessageService::DATA_RIGHTS) as $r): ?>
+        <option value="<?= esc($r, 'attr') ?>"><?= esc(lang('Lgc.right_' . $r)) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <label class="lc-label" for="detail"><?= esc(lang('Lgc.fDetail')) ?></label>
+    <textarea class="lc-in" id="detail" name="detail" required maxlength="5000"></textarea>
+    <p style="margin-top:12px"><button type="submit" class="lc-btn"><?= esc(lang('Lgc.send')) ?></button></p>
+  </form>
+</details>
+
+<details class="lc-card">
   <summary><?= esc(lang('Lgc.ptPrefs')) ?></summary>
   <form method="post" action="<?= esc(Portal::url('preferencias'), 'attr') ?>">
     <?= csrf_field() ?>

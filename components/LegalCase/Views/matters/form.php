@@ -94,6 +94,9 @@ $editing = !empty($row['id']);
                     </div>
                 </fieldset>
 
+                <?= view('Components\\LegalCase\\Views\\_conflicts') ?>
+
+                <?php if (!empty($insider)): ?>
                 <fieldset class="form-section">
                     <legend class="form-section-title"><i class="icon icon-lock"></i> <?= lang('Lgc.secInternalMatter') ?></legend>
                     <p class="form-section-hint"><?= lang('Lgc.secInternalMatterHint') ?></p>
@@ -111,6 +114,7 @@ $editing = !empty($row['id']);
                         <small class="form-hint"><?= lang('Lgc.fStrategyHint') ?></small>
                     </div>
                 </fieldset>
+                <?php endif; ?>
 
                 <fieldset class="form-section">
                     <legend class="form-section-title"><i class="icon icon-eye"></i> <?= lang('Lgc.secClientSees') ?></legend>

@@ -99,10 +99,18 @@ class DocumentService
         return Result::ok(lang('Lgc.okDocument'), $id);
     }
 
-    public function classify(array $doc, string $class, Access $acc): Result
+    public function classify(array $doc, string $class, Access $acc, bool $confirmPrivileged = false): Result
     {
         if (!in_array($class, DocumentModel::CLASSIFICATIONS, true)) {
             return Result::fail(lang('Lgc.errClassification'));
+        }
+        // Compartir con el cliente es decisión del abogado; y lo privilegiado solo lo
+        // reclasifica el equipo del asunto (deber de secreto profesional).
+        if ($class === 'shared' && !$acc->can('lgc.share')) {
+            return Result::fail(lang('Lgc.errNeedShare'));
+        }
+        if ($doc['classification'] === 'privileged' && $class === 'shared' && empty($confirmPrivileged)) {
+            return Result::fail(lang('Lgc.errPrivilegedShare'));
         }
         $data = ['classification' => $class];
         if ($class === 'shared') {

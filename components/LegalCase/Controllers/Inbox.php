@@ -57,6 +57,7 @@ class Inbox extends BaseLgc
 
         return view('Components\LegalCase\Views\inbox\show', [
             'title'    => $thread['subject'],
+            'accounts' => MessageService::accountsFor($this->companyId(), (int) $matter['id']),
             'thread'   => $thread,
             'matter'   => $matter,
             'messages' => (new MessageModel())->forThread((int) $thread['id']),
@@ -70,7 +71,7 @@ class Inbox extends BaseLgc
         if (!$matter) {
             return $this->notFound();
         }
-        $r = (new MessageService())->staffStarts($matter, (string) $this->post('subject'), (string) $this->post('body'), $this->acc());
+        $r = (new MessageService())->staffStarts($matter, (string) $this->post('subject'), (string) $this->post('body'), $this->acc(), (string) $this->post('recipient'));
 
         return $this->done($r, $r->ok ? 'legalcase/mensajes/hilo/' . $r->id : $this->matterUrl($matter, 'mensajes'));
     }
@@ -84,6 +85,21 @@ class Inbox extends BaseLgc
         $r = (new MessageService())->staffReplies($matter, $thread, (string) $this->post('body'), (string) $this->post('next_status', 'answered'), $this->acc());
 
         return $this->done($r, 'legalcase/mensajes/hilo/' . (int) $thread['id']);
+    }
+
+    /** POST — un abogado aprueba (envía) o descarta un mensaje redactado por quien no tiene lgc.share. */
+    public function review($id = null)
+    {
+        $msg = (new MessageModel())->where('company_id', $this->companyId())->find((int) $id);
+        if (!$msg) {
+            return $this->notFound('legalcase/mensajes');
+        }
+        $matter = $this->findMatter((int) $msg['matter_id']);
+        if (!$matter) {
+            return $this->notFound('legalcase/mensajes');
+        }
+
+        return $this->done((new MessageService())->review($matter, $msg, $this->post('decision') === 'approve', $this->acc()), 'legalcase/mensajes/hilo/' . (int) $msg['thread_id']);
     }
 
     public function status($id = null)

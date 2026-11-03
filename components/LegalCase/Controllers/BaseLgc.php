@@ -46,16 +46,49 @@ abstract class BaseLgc extends BaseController
         if (!(new PlanGuard())->serviceEnabled($this->companyId())) {
             return redirect()->to('dashboard')->with('error', esc(lang('Lgc.errPlanDisabled')));
         }
+        // Ni el Super Admin ni el distribuidor leen datos jurídicos sin un acceso de soporte
+        // concedido por el propio despacho (documento maestro §3).
+        if (!$this->acc()->hasCompanyAccess()) {
+            return view('Components\LegalCase\Views\no_access', ['title' => lang('Lgc.compName')]);
+        }
+        if ($this->acc()->isSupport()) {
+            $grant = $this->acc()->supportGrant();
+            $key   = 'lgc_support_logged_' . (int) $grant['id'];
+            if (!session($key)) {
+                session()->set($key, 1);
+                \Components\LegalCase\Libraries\Audit::log($this->companyId(), null, 'support.access', 'grant', (int) $grant['id']);
+            }
+            // El soporte consulta; no modifica nada.
+            if ($this->isPost()) {
+                return redirect()->back()->with('error', esc(lang('Lgc.errSupportReadOnly')));
+            }
+        }
 
         return $this->{$method}(...$params);
     }
 
-    /** El asunto si es de la empresa y el usuario lo puede ver; si no, null. */
+    /** Motivo del último rechazo de findMatter(): 'none' | 'team'. */
+    protected string $deny = 'none';
+
+    /**
+     * El asunto si es de la empresa y el usuario lo puede ver. En un POST además debe poder
+     * TRABAJARLO (responsable, equipo no observador o administrador): consultar un asunto del
+     * despacho no autoriza a actuar sobre él.
+     */
     protected function findMatter($id): ?array
     {
+        $this->deny = 'none';
         $m = (new MatterModel())->own($this->companyId(), (int) $id);
+        if (!$m || !$this->acc()->canSeeMatter($m)) {
+            return null;
+        }
+        if ($this->isPost() && !$this->acc()->canWorkOn($m)) {
+            $this->deny = 'team';
 
-        return $m && $this->acc()->canSeeMatter($m) ? $m : null;
+            return null;
+        }
+
+        return $m;
     }
 
     /**
@@ -77,7 +110,25 @@ abstract class BaseLgc extends BaseController
 
     protected function notFound(string $to = 'legalcase/asuntos'): RedirectResponse
     {
+        if ($this->deny === 'team') {
+            return redirect()->back()->with('error', esc(lang('Lgc.errNotTeam')));
+        }
+
         return redirect()->to($to)->with('error', esc(lang('Lgc.errNotFound')));
+    }
+
+    /** Traduce un fallo con conflictos o pendientes a la redirección con sus datos en flash. */
+    protected function failWithData(\Components\LegalCase\Libraries\Result $r, string $back): RedirectResponse
+    {
+        $red = redirect()->to($back)->withInput()->with('error', esc($r->message));
+        if (!empty($r->data['conflicts'])) {
+            $red = $red->with('lgc_conflicts', $r->data['conflicts']);
+        }
+        if (!empty($r->data['pending'])) {
+            $red = $red->with('lgc_pending', $r->data['pending']);
+        }
+
+        return $red;
     }
 
     /**

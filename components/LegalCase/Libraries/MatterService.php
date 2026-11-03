@@ -3,6 +3,13 @@
 namespace Components\LegalCase\Libraries;
 
 use Components\LegalCase\Models\CommPlanModel;
+use Components\LegalCase\Models\DeadlineModel;
+use Components\LegalCase\Models\DocRequestModel;
+use Components\LegalCase\Models\DocumentModel;
+use Components\LegalCase\Models\EventModel;
+use Components\LegalCase\Models\TaskModel;
+use Components\LegalCase\Models\ThreadModel;
+use Components\LegalCase\Models\UpdateModel;
 use Components\LegalCase\Models\ContactModel;
 use Components\LegalCase\Models\MatterModel;
 use Components\LegalCase\Models\ParticipantModel;
@@ -26,6 +33,9 @@ class MatterService
         'risk_level', 'client_contact_id', 'lead_lawyer_id', 'description', 'objectives', 'strategy',
         'public_stage', 'stage_hidden',
     ];
+
+    /** Campos privilegiados: solo los escribe (y los ve) el equipo del asunto. */
+    private const INTERNAL = ['description', 'objectives', 'strategy'];
 
     public function __construct(private ?PlanGuard $guard = null)
     {
@@ -69,6 +79,17 @@ class MatterService
         }
 
         $data = $this->clean($in, $companyId);
+
+        // Conflicto de interés ANTES de abrir: el cliente no puede ser contraparte en otro asunto
+        // sin una revisión justificada.
+        $conflicts = new ConflictService();
+        if ($data['client_contact_id']) {
+            $gate = $conflicts->gate($companyId, (int) $data['client_contact_id'], 'client', null, $in, $acc);
+            if (!$gate->ok) {
+                return $gate;
+            }
+        }
+
         $data['company_id'] = $companyId;
         $data['status']     = 'open';
         $data['opened_at']  = date('Y-m-d H:i:s');
@@ -111,6 +132,14 @@ class MatterService
             ]);
         }
 
+        // Quien abre el asunto sin ser el responsable (p. ej. un paralegal) queda en el equipo.
+        if ($acc->userId && (int) $acc->userId !== (int) $data['lead_lawyer_id'] && Team::isMember($companyId, $acc->userId)) {
+            (new TeamModel())->insert([
+                'company_id' => $companyId, 'matter_id' => $matterId, 'user_id' => $acc->userId,
+                'role' => 'assistant', 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
         if ($data['client_contact_id']) {
             (new ParticipantModel())->insert([
                 'company_id' => $companyId, 'matter_id' => $matterId,
@@ -121,6 +150,9 @@ class MatterService
         $db->transComplete();
         if (!$db->transStatus()) {
             return Result::fail(lang('Lgc.errSave'));
+        }
+        if ($data['client_contact_id']) {
+            $conflicts->attach($companyId, (int) $data['client_contact_id'], $matterId);
         }
 
         Audit::log($companyId, $matterId, 'matter.created', 'matter', $matterId, ['number' => $data['number']], $acc->isSystem() ? 'system' : 'user', $acc->userId ?: null);
@@ -134,7 +166,16 @@ class MatterService
             return Result::fail(lang('Lgc.errNotFound'));
         }
 
-        $data  = $this->clean($in, $acc->companyId);
+        $data = $this->clean($in, $acc->companyId);
+        if (!$acc->isInsider($matter)) {
+            $data = array_diff_key($data, array_flip(self::INTERNAL));
+        }
+        if ($data['client_contact_id'] && (int) $data['client_contact_id'] !== (int) $matter['client_contact_id']) {
+            $gate = (new ConflictService())->gate($acc->companyId, (int) $data['client_contact_id'], 'client', (int) $matter['id'], $in, $acc);
+            if (!$gate->ok) {
+                return $gate;
+            }
+        }
         $model = new MatterModel();
         if (!$model->update((int) $matter['id'], $data)) {
             return Result::fail(implode(' ', $model->errors()));
@@ -144,7 +185,8 @@ class MatterService
             $this->addTeam($matter, (int) $data['lead_lawyer_id'], 'responsible', $acc);
         }
         if ($data['client_contact_id'] && (int) $data['client_contact_id'] !== (int) $matter['client_contact_id']) {
-            $this->addParticipant($matter, (int) $data['client_contact_id'], 'client', $acc);
+            // El conflicto ya se revisó arriba: se añade la parte sin repetir la verificación.
+            $this->insertParticipant($matter, (int) $data['client_contact_id'], 'client', $acc);
         }
 
         Audit::log($acc->companyId, (int) $matter['id'], 'matter.updated', 'matter', (int) $matter['id']);
@@ -152,7 +194,27 @@ class MatterService
         return Result::ok(lang('Lgc.okSaved'), (int) $matter['id']);
     }
 
-    public function close(array $matter, string $reason, Access $acc): Result
+    /**
+     * Lo que sigue abierto en un asunto. Cerrar con pendientes exige confirmarlo: un plazo
+     * abierto puede seguir corriendo después del cierre (p. ej. un recurso).
+     *
+     * @return array<string,int>
+     */
+    public function pendingItems(array $matter): array
+    {
+        $mid = (int) $matter['id'];
+
+        return array_filter([
+            'deadlines' => (new DeadlineModel())->where('matter_id', $mid)->whereIn('status', DeadlineModel::OPEN)->countAllResults(),
+            'tasks'     => (new TaskModel())->where('matter_id', $mid)->where('status', 'open')->countAllResults(),
+            'threads'   => (new ThreadModel())->where('matter_id', $mid)->whereIn('status', ThreadModel::OPEN)->countAllResults(),
+            'requests'  => (new DocRequestModel())->where('matter_id', $mid)->whereIn('status', DocRequestModel::OPEN)->countAllResults(),
+            'drafts'    => (new UpdateModel())->where('matter_id', $mid)->whereIn('status', ['draft', 'pending_review', 'approved'])->countAllResults(),
+            'no_final'  => (new UpdateModel())->where('matter_id', $mid)->where('kind', 'closing')->where('status', 'published')->countAllResults() === 0 ? 1 : 0,
+        ]);
+    }
+
+    public function close(array $matter, string $reason, Access $acc, bool $confirmPending = false): Result
     {
         if (!in_array($reason, MatterModel::CLOSE_REASONS, true)) {
             return Result::fail(lang('Lgc.errCloseReason'));
@@ -160,13 +222,23 @@ class MatterService
         if ($matter['status'] === 'closed') {
             return Result::fail(lang('Lgc.errAlreadyClosed'));
         }
+        $pending = $this->pendingItems($matter);
+        if ($pending && !$confirmPending) {
+            return Result::fail(lang('Lgc.errClosePending'), ['pending' => $pending]);
+        }
 
-        (new MatterModel())->update((int) $matter['id'], [
-            'status' => 'closed', 'closed_at' => date('Y-m-d H:i:s'), 'close_reason' => $reason,
+        $mid = (int) $matter['id'];
+        $now = date('Y-m-d H:i:s');
+        (new MatterModel())->update($mid, [
+            'status' => 'closed', 'closed_at' => $now, 'close_reason' => $reason,
         ]);
+        // Lo administrativo se cierra; los PLAZOS no: siguen en la agenda hasta que alguien los resuelva.
+        (new TaskModel())->where('matter_id', $mid)->where('status', 'open')->set(['status' => 'cancelled'])->update();
+        (new DocRequestModel())->where('matter_id', $mid)->whereIn('status', ['pending', 'rejected'])->set(['status' => 'cancelled'])->update();
+        (new ThreadModel())->where('matter_id', $mid)->whereIn('status', ThreadModel::OPEN)->set(['status' => 'closed', 'closed_at' => $now])->update();
         // Un asunto cerrado no genera recordatorios de comunicación.
         (new CommPlanModel())->where('matter_id', (int) $matter['id'])->set(['is_active' => 0])->update();
-        Audit::log($acc->companyId, (int) $matter['id'], 'matter.closed', 'matter', (int) $matter['id'], ['reason' => $reason]);
+        Audit::log($acc->companyId, $mid, 'matter.closed', 'matter', $mid, ['reason' => $reason, 'pending' => $pending]);
 
         return Result::ok(lang('Lgc.okMatterClosed'));
     }
@@ -194,8 +266,45 @@ class MatterService
         return Result::ok(lang('Lgc.okSaved'));
     }
 
+    /**
+     * ¿Se puede eliminar? El expediente es evidencia y tiene deber de conservación: solo se
+     * elimina un asunto creado por error (sin documentos, actuaciones ni publicaciones) o uno
+     * cerrado cuyo plazo de retención ya venció, y nunca con bloqueo legal.
+     */
+    public function deleteProblem(array $matter, int $retentionYears): ?string
+    {
+        if ((int) ($matter['legal_hold'] ?? 0) === 1) {
+            return lang('Lgc.errLegalHold');
+        }
+        $mid   = (int) $matter['id'];
+        $empty = (new DocumentModel())->where('matter_id', $mid)->countAllResults() === 0
+            && (new EventModel())->where('matter_id', $mid)->countAllResults() === 0
+            && (new UpdateModel())->where('matter_id', $mid)->whereIn('status', ['published', 'superseded', 'revoked'])->countAllResults() === 0;
+        if ($empty) {
+            return null;
+        }
+        $limit = strtotime('-' . max(1, $retentionYears) . ' years');
+        if ($matter['status'] === 'closed' && $matter['closed_at'] && strtotime((string) $matter['closed_at']) < $limit) {
+            return null;
+        }
+
+        return lang('Lgc.errRetention', [max(1, $retentionYears)]);
+    }
+
+    public function setLegalHold(array $matter, bool $on, Access $acc): Result
+    {
+        (new MatterModel())->update((int) $matter['id'], ['legal_hold' => $on ? 1 : 0]);
+        Audit::log($acc->companyId, (int) $matter['id'], $on ? 'matter.legal_hold_on' : 'matter.legal_hold_off', 'matter', (int) $matter['id']);
+
+        return Result::ok(lang($on ? 'Lgc.okHoldOn' : 'Lgc.okHoldOff'));
+    }
+
     public function delete(array $matter, Access $acc): Result
     {
+        $years = (int) ((new SettingsModel())->forCompanyOrDefault($acc->companyId)['retention_years'] ?? 10);
+        if ($problem = $this->deleteProblem($matter, $years)) {
+            return Result::fail($problem);
+        }
         // Soft-delete: los hijos quedan colgando de una fila invisible y ninguna consulta
         // (ni del portal) los alcanza, porque todas resuelven el asunto primero.
         (new MatterModel())->delete((int) $matter['id']);
@@ -242,23 +351,105 @@ class MatterService
         return Result::ok(lang('Lgc.okTeamRemoved'));
     }
 
-    public function addParticipant(array $matter, int $contactId, string $role, Access $acc, string $notes = ''): Result
+    public function addParticipant(array $matter, int $contactId, string $role, Access $acc, string $notes = '', array $in = []): Result
     {
         if (!in_array($role, ParticipantModel::ROLES, true) || !(new ContactModel())->own($acc->companyId, $contactId)) {
             return Result::fail(lang('Lgc.errParticipant'));
         }
-        $model = new ParticipantModel();
-        $exists = $model->where('matter_id', (int) $matter['id'])->where('contact_id', $contactId)->where('role', $role)->first();
+        $exists = (new ParticipantModel())->where('matter_id', (int) $matter['id'])->where('contact_id', $contactId)->where('role', $role)->first();
         if ($exists) {
             return Result::fail(lang('Lgc.errParticipantDup'));
         }
-        $model->insert([
+        // Un mismo contacto no puede estar en los dos lados del MISMO asunto.
+        $side  = in_array($role, ConflictService::CLIENT_SIDE, true) ? ConflictService::ADVERSE_SIDE : (in_array($role, ConflictService::ADVERSE_SIDE, true) ? ConflictService::CLIENT_SIDE : []);
+        if ($side && (new ParticipantModel())->where('matter_id', (int) $matter['id'])->where('contact_id', $contactId)->whereIn('role', $side)->first()) {
+            return Result::fail(lang('Lgc.errBothSides'));
+        }
+        $gate = (new ConflictService())->gate($acc->companyId, $contactId, $role, (int) $matter['id'], $in, $acc);
+        if (!$gate->ok) {
+            return $gate;
+        }
+
+        return $this->insertParticipant($matter, $contactId, $role, $acc, $notes);
+    }
+
+    private function insertParticipant(array $matter, int $contactId, string $role, Access $acc, string $notes = ''): Result
+    {
+        (new ParticipantModel())->insert([
             'company_id' => $acc->companyId, 'matter_id' => (int) $matter['id'], 'contact_id' => $contactId,
             'role' => $role, 'portal_access' => 0, 'notes' => mb_substr($notes, 0, 255),
         ]);
         Audit::log($acc->companyId, (int) $matter['id'], 'participant.added', 'contact', $contactId, ['role' => $role]);
 
         return Result::ok(lang('Lgc.okParticipant'));
+    }
+
+    /**
+     * Poder del representante: documento del asunto que lo acredita, alcance y vigencia.
+     * Sin poder vigente el representante no puede acceder al portal (lo verifica Portal y ClientView).
+     */
+    public function setAuthority(array $matter, int $rowId, array $in, Access $acc): Result
+    {
+        $model = new ParticipantModel();
+        $row   = $model->where('matter_id', (int) $matter['id'])->find($rowId);
+        if (!$row || $row['role'] !== 'representative') {
+            return Result::fail(lang('Lgc.errNotFound'));
+        }
+        $docId = (int) ($in['authority_document_id'] ?? 0);
+        if ($docId && !(new DocumentModel())->where('matter_id', (int) $matter['id'])->find($docId)) {
+            return Result::fail(lang('Lgc.errAuthorityDoc'));
+        }
+        $until = trim((string) ($in['authority_until'] ?? ''));
+        $model->update($rowId, [
+            'authority_document_id' => $docId ?: null,
+            'authority_scope'       => mb_substr(trim((string) ($in['authority_scope'] ?? '')), 0, 255),
+            'authority_until'       => $until !== '' && strtotime($until) ? date('Y-m-d', strtotime($until)) : null,
+        ]);
+        Audit::log($acc->companyId, (int) $matter['id'], 'participant.authority', 'contact', (int) $row['contact_id'], ['document' => $docId ?: null, 'until' => $until ?: null]);
+
+        return Result::ok(lang('Lgc.okAuthority'));
+    }
+
+    /**
+     * Reasigna el trabajo de una persona (p. ej. al retirarse del despacho) a otra: asuntos
+     * donde es responsable, planes de comunicación, plazos, tareas y conversaciones abiertas.
+     *
+     * @return Result data = conteos por tipo
+     */
+    public function reassign(int $fromUserId, int $toUserId, Access $acc): Result
+    {
+        if ($fromUserId <= 0 || $fromUserId === $toUserId || !Team::isMember($acc->companyId, $toUserId)) {
+            return Result::fail(lang('Lgc.errReassign'));
+        }
+        $cid = $acc->companyId;
+        $db  = db_connect();
+        $db->transStart();
+        $n = [];
+        $db->table('cmp_lgc_matters')->where('company_id', $cid)->where('lead_lawyer_id', $fromUserId)->where('deleted_at', null)->update(['lead_lawyer_id' => $toUserId]);
+        $n['matters'] = $db->affectedRows();
+        $db->table('cmp_lgc_comm_plans')->where('company_id', $cid)->where('owner_id', $fromUserId)->update(['owner_id' => $toUserId]);
+        $n['plans'] = $db->affectedRows();
+        $db->table('cmp_lgc_deadlines')->where('company_id', $cid)->where('assigned_to', $fromUserId)->whereIn('status', DeadlineModel::OPEN)->update(['assigned_to' => $toUserId]);
+        $n['deadlines'] = $db->affectedRows();
+        $db->table('cmp_lgc_tasks')->where('company_id', $cid)->where('assigned_to', $fromUserId)->where('status', 'open')->update(['assigned_to' => $toUserId]);
+        $n['tasks'] = $db->affectedRows();
+        $db->table('cmp_lgc_threads')->where('company_id', $cid)->where('assigned_to', $fromUserId)->whereIn('status', ThreadModel::OPEN)->update(['assigned_to' => $toUserId]);
+        $n['threads'] = $db->affectedRows();
+
+        // Equipo: quien llega ocupa el lugar de quien sale (sin duplicarse donde ya estaba).
+        foreach ($db->table('cmp_lgc_matter_team')->where('company_id', $cid)->where('user_id', $fromUserId)->get()->getResultArray() as $t) {
+            $already = $db->table('cmp_lgc_matter_team')->where('matter_id', $t['matter_id'])->where('user_id', $toUserId)->countAllResults() > 0;
+            $already
+                ? $db->table('cmp_lgc_matter_team')->where('id', $t['id'])->delete()
+                : $db->table('cmp_lgc_matter_team')->where('id', $t['id'])->update(['user_id' => $toUserId]);
+        }
+        $db->transComplete();
+        if (!$db->transStatus()) {
+            return Result::fail(lang('Lgc.errSave'));
+        }
+        Audit::log($cid, null, 'work.reassigned', 'user', $fromUserId, ['to' => $toUserId] + $n);
+
+        return Result::ok(lang('Lgc.okReassigned', [array_sum($n)]), null, $n);
     }
 
     public function removeParticipant(array $matter, int $rowId, Access $acc): Result

@@ -34,7 +34,7 @@ foreach ($proceedings as $p) {
                                 <span class="badge badge-light"><?= lang('Lgc.pkind_' . $p['kind']) ?></span>
                                 <span class="badge badge-info"><?= lang('Lgc.proc_' . $p['status']) ?></span>
                             </summary>
-                            <?php if ($acc->can('lgc.edit')): ?>
+                            <?php if (($canWork && $acc->can('lgc.edit'))): ?>
                                 <form method="post" action="<?= base_url('legalcase/procesos/editar/' . (int) $p['id']) ?>" class="mt-3 grid gap-3 md:grid-cols-2">
                                     <?= csrf_field() ?>
                                     <?= view('Components\LegalCase\Views\matters\tabs\_proceeding_fields', ['p' => $p, 'wide' => true]) ?>
@@ -43,7 +43,7 @@ foreach ($proceedings as $p) {
                                     </div>
                                 </form>
                             <?php endif; ?>
-                            <?php if ($acc->can('lgc.delete')): ?>
+                            <?php if (($canWork && $acc->can('lgc.delete'))): ?>
                                 <div class="mt-2 flex justify-end">
                                     <?= view('partials/delete_button', ['action' => base_url('legalcase/procesos/eliminar/' . (int) $p['id']), 'confirm' => lang('Lgc.confirmDelete'), 'label' => lang('Lgc.delete'), 'text' => lang('Lgc.delete'), 'class' => 'btn btn-danger btn-sm', 'icon' => 'trash']) ?>
                                 </div>
@@ -70,7 +70,7 @@ foreach ($proceedings as $p) {
                                     </div>
                                     <div class="flex items-center gap-2 text-xs text-muted">
                                         <?= esc(Meta::date($e['occurred_at'])) ?> · <?= lang('Lgc.ekind_' . $e['kind']) ?>
-                                        <?php if ($acc->can('lgc.delete')): ?>
+                                        <?php if (($canWork && $acc->can('lgc.delete'))): ?>
                                             <?= view('partials/delete_button', ['action' => base_url('legalcase/actuaciones/eliminar/' . (int) $e['id']), 'confirm' => lang('Lgc.confirmDelete'), 'label' => lang('Lgc.delete'), 'class' => 'btn btn-ghost btn-sm', 'icon' => 'trash', 'text' => '']) ?>
                                         <?php endif; ?>
                                     </div>
@@ -80,7 +80,7 @@ foreach ($proceedings as $p) {
                                     <?= lang('Lgc.fSource') ?>: <?= esc($e['source'] ?: '—') ?><?= $e['source_ref'] ? ' · ' . esc($e['source_ref']) : '' ?>
                                     <?= $e['proceeding_id'] ? ' · ' . esc($procs[(int) $e['proceeding_id']] ?? '') : '' ?>
                                 </div>
-                                <?php if ((int) $e['is_relevant'] && $open && $acc->can('lgc.create')): ?>
+                                <?php if ((int) $e['is_relevant'] && $open && ($canWork && $acc->can('lgc.create'))): ?>
                                     <a class="mt-2 inline-block text-xs text-primary" href="<?= base_url('legalcase/asuntos/actualizacion/' . $id) ?>"><i class="icon icon-send"></i> <?= lang('Lgc.updFromEvent') ?></a>
                                 <?php endif; ?>
                             </li>
@@ -91,7 +91,7 @@ foreach ($proceedings as $p) {
         </div>
     </div>
 
-    <?php if ($acc->can('lgc.create')): ?>
+    <?php if (($canWork && $acc->can('lgc.create'))): ?>
         <div class="min-w-0 space-y-4">
             <?php if ($open): ?>
                 <div class="card">

@@ -12,7 +12,7 @@ class ParticipantModel extends BaseLgcModel
     protected $table          = 'cmp_lgc_participants';
     protected $useSoftDeletes = false;
     protected $useTimestamps  = true;
-    protected $allowedFields  = ['company_id', 'matter_id', 'contact_id', 'role', 'portal_access', 'notes'];
+    protected $allowedFields  = ['company_id', 'matter_id', 'contact_id', 'role', 'portal_access', 'notes', 'authority_document_id', 'authority_scope', 'authority_until'];
 
     public const ROLES        = ['client', 'representative', 'payer', 'counterparty', 'counsel', 'witness', 'authority', 'other'];
     public const PORTAL_ROLES = ['client', 'representative'];

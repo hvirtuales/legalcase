@@ -28,7 +28,7 @@ class ClientView
     private function matterIds(array $account): array
     {
         $rows = db_connect()->table('cmp_lgc_participants p')
-            ->select('p.matter_id')
+            ->select('p.matter_id, p.role, p.authority_document_id, p.authority_until')
             ->join('cmp_lgc_matters m', 'm.id = p.matter_id')
             ->where('p.company_id', (int) $account['company_id'])
             ->where('m.company_id', (int) $account['company_id'])
@@ -36,6 +36,9 @@ class ClientView
             ->where('p.portal_access', 1)
             ->where('m.deleted_at', null)
             ->get()->getResultArray();
+
+        // Un representante con el poder vencido o sin acreditar deja de ver el asunto.
+        $rows = array_filter($rows, static fn ($r) => Portal::authorityValid($r));
 
         return array_values(array_unique(array_map('intval', array_column($rows, 'matter_id'))));
     }
@@ -83,26 +86,60 @@ class ClientView
     {
         $mid = (int) $matter['id'];
 
-        $threads = (new ThreadModel())->where('matter_id', $mid)->orderBy('last_message_at', 'DESC')->findAll(50);
+        $threads = $this->threadsQuery($account, $mid)->orderBy('last_message_at', 'DESC')->findAll(50);
         $msgs    = new MessageModel();
         foreach ($threads as &$t) {
+            // Solo lo ENVIADO: un borrador en revisión o descartado nunca llega al cliente.
             $t['messages'] = array_map(
                 static fn ($x) => array_intersect_key($x, array_flip(['id', 'direction', 'body', 'is_auto', 'created_at', 'author_user_id'])),
-                $msgs->forThread((int) $t['id'])
+                $msgs->sentForThread((int) $t['id'])
             );
         }
         unset($t);
 
         return [
             'updates'  => (new UpdateModel())->publishedFor($mid),
-            'requests' => (new DocRequestModel())->where('matter_id', $mid)->whereIn('status', DocRequestModel::STATUSES)
-                ->where('status !=', 'cancelled')->orderBy('created_at', 'DESC')->findAll(100),
+            'requests' => $this->requestsQuery($account, $mid)->where('status !=', 'cancelled')->orderBy('created_at', 'DESC')->findAll(100),
             'docs'     => (new DocumentModel())->where('matter_id', $mid)->where('classification', 'shared')->orderBy('created_at', 'DESC')->findAll(200),
             'mine'     => (new DocumentModel())->where('matter_id', $mid)->where('source', 'client')
                 ->where('uploaded_by_account', (int) $account['id'])->orderBy('created_at', 'DESC')->findAll(200),
             'threads'  => $threads,
             'lawyer'   => Team::name((int) $matter['company_id'], (int) $matter['lead_lawyer_id'] ?: null),
         ];
+    }
+
+    /**
+     * Hilos de la cuenta en el asunto: los suyos y los que el despacho marcó como compartidos.
+     * Entre coclientes rige el secreto: lo que uno escribe no lo lee el otro.
+     */
+    private function threadsQuery(array $account, int $matterId): ThreadModel
+    {
+        $aid = (int) $account['id'];
+        $m   = new ThreadModel();
+        $m->where('matter_id', $matterId)->where('company_id', (int) $account['company_id'])
+            ->groupStart()
+            ->where('is_shared', 1)
+            ->orWhere('account_id', $aid)
+            ->orGroupStart()->where('account_id', null)->where('opened_by_account', $aid)->groupEnd()
+            ->groupEnd();
+
+        return $m;
+    }
+
+    /** Solicitudes dirigidas a la cuenta o a cualquiera de los clientes del asunto. */
+    private function requestsQuery(array $account, int $matterId): DocRequestModel
+    {
+        $m = new DocRequestModel();
+        $m->where('matter_id', $matterId)->where('company_id', (int) $account['company_id'])
+            ->groupStart()->where('account_id', null)->orWhere('account_id', (int) $account['id'])->groupEnd();
+
+        return $m;
+    }
+
+    /** Hilo visible para la cuenta (para responder), o null. */
+    public function thread(array $account, int $matterId, int $threadId): ?array
+    {
+        return $this->threadsQuery($account, $matterId)->find($threadId) ?: null;
     }
 
     /** Documento descargable por la cuenta: compartido, o subido por ella misma. */
@@ -123,6 +160,9 @@ class ClientView
         $r = (new DocRequestModel())->where('company_id', (int) $account['company_id'])->find($requestId);
         if (!$r || !in_array($r['status'], DocRequestModel::OPEN, true) || !$this->matter($account, (int) $r['matter_id'])) {
             return null;
+        }
+        if (!empty($r['account_id']) && (int) $r['account_id'] !== (int) $account['id']) {
+            return null; // dirigida a otro cliente del mismo asunto
         }
 
         return $r;

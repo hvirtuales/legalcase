@@ -123,7 +123,7 @@ class LgcContrato extends BaseCommand
         $this->check('ámbito declarado', in_array($m['scope'] ?? 'company', ['company', 'tenant'], true));
         $this->check('sin dependencias de otros componentes', ($m['depends'] ?? []) === []);
 
-        $verbs = ['view', 'create', 'edit', 'delete', 'approve', 'configure', 'export', 'import'];
+        $verbs = ['view', 'create', 'edit', 'delete', 'approve', 'share', 'configure', 'export', 'import'];
         $bad   = array_filter(array_keys($m['permissions'] ?? []), fn ($p) => !preg_match('/^' . $m['code'] . '\.(' . implode('|', $verbs) . ')$/', $p));
         $this->check('permisos <code>.<verbo>', $bad === [], implode(', ', $bad));
 

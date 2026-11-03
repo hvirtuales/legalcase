@@ -18,7 +18,10 @@ $id = (int) $matter['id'];
                 <span class="badge badge-danger"><?= lang('Lgc.neverPublished') ?></span>
             </div>
             <div class="card-body space-y-4 text-sm">
-                <?php foreach (['description' => 'fFacts', 'objectives' => 'fObjectives', 'strategy' => 'fStrategy'] as $f => $label): ?>
+                <?php if (!$insider): ?>
+                    <p class="flex items-center gap-2 text-muted"><i class="icon icon-lock"></i> <?= lang('Lgc.privilegedHidden') ?></p>
+                <?php endif; ?>
+                <?php foreach ($insider ? ['description' => 'fFacts', 'objectives' => 'fObjectives', 'strategy' => 'fStrategy'] : [] as $f => $label): ?>
                     <div>
                         <div class="text-xs font-semibold uppercase text-muted"><?= lang('Lgc.' . $label) ?></div>
                         <p class="mt-1 whitespace-pre-line"><?= $matter[$f] !== null && trim((string) $matter[$f]) !== '' ? esc($matter[$f]) : '<span class="text-muted">—</span>' ?></p>

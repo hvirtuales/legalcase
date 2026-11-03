@@ -12,13 +12,18 @@ use Components\LegalCase\Libraries\Access;
 use Components\LegalCase\Libraries\Meta;
 use Components\LegalCase\Models\ThreadModel;
 
-$id      = (int) $thread['id'];
-$canEdit = Access::current()->can('lgc.edit');
+$id       = (int) $thread['id'];
+$acc      = Access::current();
+$canWork  = $acc->canWorkOn($matter);
+$canEdit  = $canWork && $acc->can('lgc.edit');
+$canShare = $canWork && $acc->can('lgc.share');
 ?>
 <div class="mb-4 flex flex-wrap items-center gap-3">
     <a href="<?= base_url('legalcase/mensajes') ?>" class="btn btn-ghost btn-sm"><i class="icon icon-arrow-left"></i></a>
     <div>
-        <h4 class="flex flex-wrap items-center gap-2 font-bold"><?= esc($thread['subject']) ?> <?= Meta::badge('thread', $thread['status']) ?></h4>
+        <h4 class="flex flex-wrap items-center gap-2 font-bold"><?= esc($thread['subject']) ?> <?= Meta::badge('thread', $thread['status']) ?>
+            <?php if ($thread['kind'] === 'data_rights'): ?><span class="badge badge-danger"><?= lang('Lgc.dataRights') ?></span><?php endif; ?></h4>
+        <p class="text-xs text-muted"><?= lang('Lgc.fRecipient') ?>: <?= (int) $thread['is_shared'] ? lang('Lgc.sharedThread') : esc($accounts[(int) ($thread['account_id'] ?: $thread['opened_by_account'])] ?? '—') ?></p>
         <p class="text-xs text-muted">
             <a class="text-primary" href="<?= base_url('legalcase/asuntos/ficha/' . (int) $matter['id'] . '?tab=mensajes') ?>"><span class="font-mono"><?= esc($matter['number']) ?></span> · <?= esc($matter['title']) ?></a>
         </p>
@@ -28,8 +33,22 @@ $canEdit = Access::current()->can('lgc.edit');
 <div class="grid gap-4 lg:grid-cols-3">
     <div class="card min-w-0 lg:col-span-2">
         <div class="card-body space-y-3">
-            <?php foreach ($messages as $m): $in = $m['direction'] === 'in'; ?>
-                <div class="rounded-md border border-line p-3 <?= $in ? '' : 'bg-surface-muted' ?>">
+            <?php if ($thread['kind'] === 'data_rights'): ?>
+                <div class="alert alert-warning"><i class="icon icon-shield-check"></i><span><?= lang('Lgc.dataRightsHint') ?></span></div>
+            <?php endif; ?>
+            <?php foreach ($messages as $m): $in = $m['direction'] === 'in'; $review = ($m['status'] ?? 'sent') === 'pending_review'; ?>
+                <div class="rounded-md border p-3 border-line <?= $in ? '' : 'bg-surface-muted' ?>">
+                    <?php if ($review): ?>
+                        <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <span class="badge badge-warning"><?= lang('Lgc.msgInReview') ?></span>
+                            <?php if ($canShare && (int) $m['author_user_id'] !== $acc->userId): ?>
+                                <form method="post" action="<?= base_url('legalcase/mensajes/revisar/' . (int) $m['id']) ?>" class="flex gap-1"><?= csrf_field() ?>
+                                    <button name="decision" value="approve" class="btn btn-success btn-sm"><i class="icon icon-send"></i> <?= lang('Lgc.approveSend') ?></button>
+                                    <button name="decision" value="discard" class="btn btn-ghost btn-sm" onclick="return confirm('<?= esc(lang('Lgc.confirmDiscard'), 'js') ?>')"><?= lang('Lgc.discard') ?></button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
                         <span>
                             <?php if ($in): ?>
@@ -51,7 +70,7 @@ $canEdit = Access::current()->can('lgc.edit');
                     <?= csrf_field() ?>
                     <label for="body" class="form-label"><?= lang('Lgc.reply') ?></label>
                     <textarea id="body" name="body" rows="5" class="form-textarea" required maxlength="5000"></textarea>
-                    <small class="form-hint"><?= lang('Lgc.replyHint') ?></small>
+                    <small class="form-hint"><?= lang($canShare ? 'Lgc.replyHint' : 'Lgc.replyReviewHint') ?></small>
                     <div class="flex flex-wrap items-center justify-end gap-2">
                         <select name="next_status" class="form-select" aria-label="<?= esc(lang('Lgc.fStatus'), 'attr') ?>">
                             <option value="answered"><?= lang('Lgc.thread_answered') ?></option>

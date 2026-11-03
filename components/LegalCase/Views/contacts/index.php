@@ -40,6 +40,8 @@ $canDelete = (new \App\Models\UserModel())->hasPermission((int) session('user_id
                     'render' => static fn ($r) => esc($r['email'] ?: '—')],
                 ['key' => 'phone', 'label' => lang('Lgc.fPhone'), 'sortable' => false,
                     'render' => static fn ($r) => esc($r['phone'] ?: '—')],
+                ['key' => 'consent_status', 'label' => lang('Lgc.fConsentStatus'), 'sortable' => false,
+                    'render' => static fn ($r) => '<span class="badge ' . (['granted' => 'badge-success', 'revoked' => 'badge-danger'][$r['consent_status'] ?? 'none'] ?? 'badge-warning') . '">' . esc(lang('Lgc.consent_' . ($r['consent_status'] ?: 'none'))) . '</span>'],
                 ['key' => 'city', 'label' => lang('Lgc.fCity'), 'sortable' => false,
                     'render' => static fn ($r) => esc(trim($r['city'] . ' ' . $r['country']))],
             ],

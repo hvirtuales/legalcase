@@ -8,7 +8,7 @@ class PortalAccountModel extends BaseLgcModel
     protected $table          = 'cmp_lgc_portal_accounts';
     protected $useSoftDeletes = false;
     protected $useTimestamps  = true;
-    protected $allowedFields  = ['company_id', 'contact_id', 'email', 'locale', 'status', 'notify_email', 'invited_by', 'invited_at', 'last_login_at'];
+    protected $allowedFields  = ['company_id', 'contact_id', 'email', 'locale', 'status', 'notify_email', 'invited_by', 'invited_at', 'last_login_at', 'privacy_version', 'privacy_accepted_at', 'privacy_ip'];
 
     public const STATUSES = ['active', 'revoked'];
 

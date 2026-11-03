@@ -93,6 +93,7 @@ class Updates extends BaseLgc
                 ->groupStart()->where('id', (int) ($u['supersedes_id'] ?: 0))->orWhere('supersedes_id', (int) $u['id'])->groupEnd()
                 ->orderBy('version', 'ASC')->findAll(),
             'acc'        => $this->acc(),
+            'canWork'    => $this->acc()->canWorkOn($matter),
         ]);
     }
 

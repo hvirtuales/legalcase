@@ -50,7 +50,7 @@ class Outbox
      *
      * @return int avisos nuevos encolados
      */
-    public function notifyMatter(array $matter, string $kind, string $refType, int $refId): int
+    public function notifyMatter(array $matter, string $kind, string $refType, int $refId, ?array $onlyAccounts = null): int
     {
         $companyId = (int) $matter['company_id'];
         $settings  = (new SettingsModel())->forCompanyOrDefault($companyId);
@@ -58,6 +58,10 @@ class Outbox
         $ids       = [];
 
         foreach (self::recipients($companyId, (int) $matter['id']) as $r) {
+            // Aviso dirigido (hilo o solicitud de una persona): solo a ella, no a los coclientes.
+            if ($onlyAccounts !== null && !in_array((int) $r['account_id'], array_map('intval', $onlyAccounts), true)) {
+                continue;
+            }
             $key = $kind . ':' . $refType . ':' . $refId . ':' . $r['account_id'];
             if ($model->where('idem_key', $key)->countAllResults() > 0) {
                 continue;
@@ -89,6 +93,35 @@ class Outbox
         return count($ids);
     }
 
+    /**
+     * Aviso INTERNO a una persona del despacho (plazo próximo, mensaje del cliente, entrega).
+     * Mismo outbox e idempotencia; sin cuenta del portal. `$window` distingue avisos repetidos
+     * sobre el mismo registro (p. ej. plazo a 7, 3 y 1 días).
+     */
+    public function notifyStaff(int $companyId, ?int $matterId, ?int $userId, string $kind, string $refType, int $refId, string $window = ''): bool
+    {
+        if (!$userId || !Team::isMember($companyId, $userId)) {
+            return false;
+        }
+        $user = (new \App\Models\UserModel())->find($userId);
+        if (!$user || !filter_var((string) ($user['email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        $key   = 'staff_' . $kind . ':' . $refType . ':' . $refId . ':' . $userId . ($window !== '' ? ':' . $window : '');
+        $model = new DeliveryModel();
+        if ($model->where('idem_key', $key)->countAllResults() > 0) {
+            return false;
+        }
+        $model->insert([
+            'company_id' => $companyId, 'matter_id' => $matterId, 'account_id' => null, 'channel' => 'email',
+            'kind' => 'staff_' . $kind, 'ref_type' => $refType, 'ref_id' => $refId, 'idem_key' => $key,
+            'recipient' => $user['email'], 'status' => 'pending',
+        ]);
+        $this->dispatchOne((int) $model->getInsertID());
+
+        return true;
+    }
+
     /** Reintenta lo pendiente o fallido. @return array{sent:int,failed:int,skipped:int} */
     public function dispatch(int $limit = 50, ?int $companyId = null): array
     {
@@ -115,6 +148,10 @@ class Outbox
         $d     = $model->find($id);
         if (!$d || $d['status'] === 'sent' || $d['status'] === 'skipped') {
             return true;
+        }
+
+        if (str_starts_with((string) $d['kind'], 'staff_')) {
+            return $this->dispatchStaff($d);
         }
 
         $account = db_connect()->table('cmp_lgc_portal_accounts')->where('id', (int) $d['account_id'])->get()->getRowArray();
@@ -145,6 +182,41 @@ class Outbox
 
         $ok = !empty($res['ok']);
         $model->update($id, [
+            'status'     => $ok ? 'sent' : 'failed',
+            'attempts'   => (int) $d['attempts'] + 1,
+            'last_error' => $ok ? '' : mb_substr((string) ($res['message'] ?? ''), 0, 255),
+            'sent_at'    => $ok ? date('Y-m-d H:i:s') : null,
+        ]);
+
+        return $ok;
+    }
+
+    /** Envío de un aviso interno. Lleva el número del asunto, nunca su contenido. */
+    private function dispatchStaff(array $d): bool
+    {
+        $matter  = $d['matter_id'] ? db_connect()->table('cmp_lgc_matters')->select('number')->where('id', (int) $d['matter_id'])->get()->getRowArray() : null;
+        $company = (new CompanyModel())->find((int) $d['company_id']) ?? [];
+        $number  = (string) ($matter['number'] ?? '');
+        $subject = lang('Lgc.mailStaff_' . $d['kind'], [$number], 'es');
+        $html    = view('Components\LegalCase\Views\email\staff', [
+            'company' => $company, 'locale' => 'es', 'kind' => $d['kind'], 'number' => $number,
+            'url'     => base_url($d['matter_id'] ? 'legalcase/asuntos/ficha/' . (int) $d['matter_id'] : 'legalcase'),
+        ]);
+
+        return $this->send($d, $subject, $html);
+    }
+
+    private function send(array $d, string $subject, string $html): bool
+    {
+        try {
+            $res = $this->sender
+                ? ($this->sender)((int) $d['company_id'], (string) $d['recipient'], $subject, $html)
+                : (new CompanyMailer())->send((int) $d['company_id'], (string) $d['recipient'], $subject, $html);
+        } catch (\Throwable $e) {
+            $res = ['ok' => false, 'message' => $e->getMessage()];
+        }
+        $ok = !empty($res['ok']);
+        (new DeliveryModel())->update((int) $d['id'], [
             'status'     => $ok ? 'sent' : 'failed',
             'attempts'   => (int) $d['attempts'] + 1,
             'last_error' => $ok ? '' : mb_substr((string) ($res['message'] ?? ''), 0, 255),

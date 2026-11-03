@@ -64,6 +64,20 @@ class Contacts extends BaseLgc
         $data['locale']  = in_array($data['locale'], ['es', 'en'], true) ? $data['locale'] : 'es';
         $data['kind']    = in_array($data['kind'], ContactModel::KINDS, true) ? $data['kind'] : 'person';
 
+        // Autorización de tratamiento de datos (Ley 1581, art. 9): estado, medio y prueba.
+        $status = (string) $this->request->getPost('consent_status');
+        $status = in_array($status, ContactModel::CONSENT_STATUSES, true) ? $status : 'none';
+        $method = (string) $this->request->getPost('consent_method');
+        $data['consent_status']   = $status;
+        $data['consent_method']   = in_array($method, ContactModel::CONSENT_METHODS, true) ? $method : '';
+        $data['consent_evidence'] = mb_substr(trim((string) $this->request->getPost('consent_evidence')), 0, 255);
+        if ($status === 'granted' && $data['consent_method'] === '') {
+            return redirect()->back()->withInput()->with('error', esc(lang('Lgc.vConsentMethod')));
+        }
+        if ($status !== ($row['consent_status'] ?? 'none')) {
+            $data['consent_at'] = $status === 'none' ? null : date('Y-m-d H:i:s');
+        }
+
         $model = new ContactModel();
         if ($row) {
             $ok = $model->update((int) $row['id'], $data);
@@ -78,6 +92,9 @@ class Contacts extends BaseLgc
             return redirect()->back()->withInput()->with('error', esc(implode(' ', $model->errors())));
         }
         Audit::log($this->companyId(), null, $row ? 'contact.updated' : 'contact.created', 'contact', $id);
+        if ($status !== ($row['consent_status'] ?? 'none')) {
+            Audit::log($this->companyId(), null, 'contact.consent_' . $status, 'contact', $id, ['method' => $data['consent_method']]);
+        }
 
         // Volver a donde se pidió (p. ej. el alta de un asunto) si es una ruta del componente.
         $back = (string) $this->request->getPost('return_to');

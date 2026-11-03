@@ -48,11 +48,11 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
                                     <td><?= Meta::badge('deadline', $d['status']) ?></td>
                                     <td>
                                         <div class="flex justify-end gap-1">
-                                            <?php if ($d['status'] === 'to_validate' && $acc->can('lgc.approve')): ?>
+                                            <?php if ($d['status'] === 'to_validate' && ($canWork && $acc->can('lgc.approve'))): ?>
                                                 <form method="post" action="<?= base_url('legalcase/plazos/validar/' . (int) $d['id']) ?>"><?= csrf_field() ?>
                                                     <button class="btn btn-secondary btn-sm" title="<?= esc(lang('Lgc.validate'), 'attr') ?>"><i class="icon icon-patch-check"></i></button></form>
                                             <?php endif; ?>
-                                            <?php if ($isOpen && $acc->can('lgc.edit')): ?>
+                                            <?php if ($isOpen && ($canWork && $acc->can('lgc.edit'))): ?>
                                                 <form method="post" action="<?= base_url('legalcase/plazos/estado/' . (int) $d['id']) ?>"><?= csrf_field() ?><input type="hidden" name="status" value="done">
                                                     <button class="btn btn-success btn-sm" title="<?= esc(lang('Lgc.markDone'), 'attr') ?>"><i class="icon icon-check-circle"></i></button></form>
                                                 <form method="post" action="<?= base_url('legalcase/plazos/estado/' . (int) $d['id']) ?>" onsubmit="return confirm('<?= esc(lang('Lgc.confirmCancel'), 'js') ?>')"><?= csrf_field() ?><input type="hidden" name="status" value="cancelled">
@@ -83,7 +83,7 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
                                     <?php if ($t['kind'] !== 'task'): ?><span class="badge badge-info"><?= lang('Lgc.tkind_' . $t['kind']) ?></span><?php endif; ?>
                                     <div class="text-xs text-muted"><?= esc(Meta::date($t['due_at'])) ?> · <?= esc($users[(int) $t['assigned_to']] ?? '—') ?></div>
                                 </div>
-                                <?php if ($acc->can('lgc.edit')): ?>
+                                <?php if (($canWork && $acc->can('lgc.edit'))): ?>
                                     <form method="post" action="<?= base_url('legalcase/tareas/estado/' . (int) $t['id']) ?>"><?= csrf_field() ?>
                                         <input type="hidden" name="status" value="<?= $t['status'] === 'open' ? 'done' : 'open' ?>">
                                         <button class="btn btn-ghost btn-sm"><i class="icon icon-<?= $t['status'] === 'open' ? 'check-circle' : 'arrow-counterclockwise' ?>"></i>
@@ -98,7 +98,7 @@ $dual = ($settings['deadline_policy'] ?? 'single') === 'dual';
         </div>
     </div>
 
-    <?php if ($acc->can('lgc.create') && $open): ?>
+    <?php if (($canWork && $acc->can('lgc.create')) && $open): ?>
         <div class="min-w-0 space-y-4">
             <div class="card">
                 <div class="card-header"><i class="icon icon-clock"></i><h5 class="font-semibold"><?= lang('Lgc.deadlineNew') ?></h5></div>

@@ -14,7 +14,7 @@ class MatterModel extends BaseLgcModel
     protected $table          = 'cmp_lgc_matters';
     protected $useSoftDeletes = true;
     protected $useTimestamps  = true;
-    protected $allowedFields  = ['company_id', 'number', 'title', 'public_title', 'specialty', 'country', 'jurisdiction', 'status', 'visibility', 'sensitivity', 'risk_level', 'client_contact_id', 'lead_lawyer_id', 'description', 'objectives', 'strategy', 'public_stage', 'stage_hidden', 'opened_at', 'closed_at', 'close_reason', 'next_update_due_at', 'last_published_at', 'created_by'];
+    protected $allowedFields  = ['company_id', 'number', 'title', 'public_title', 'specialty', 'country', 'jurisdiction', 'status', 'visibility', 'sensitivity', 'risk_level', 'client_contact_id', 'lead_lawyer_id', 'description', 'objectives', 'strategy', 'public_stage', 'stage_hidden', 'opened_at', 'closed_at', 'close_reason', 'next_update_due_at', 'last_published_at', 'created_by', 'legal_hold'];
 
     public const STATUSES      = ['open', 'on_hold', 'closed'];
     public const VISIBILITIES  = ['firm', 'team'];

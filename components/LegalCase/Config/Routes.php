@@ -43,8 +43,11 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->post('asuntos/equipo/quitar/(:num)/(:num)', 'Matters::removeTeam/$1/$2', ['filter' => 'permission:lgc.edit']);
     $routes->post('asuntos/parte/(:num)', 'Matters::addParticipant/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('asuntos/parte/quitar/(:num)/(:num)', 'Matters::removeParticipant/$1/$2', ['filter' => 'permission:lgc.edit']);
-    $routes->post('asuntos/portal/(:num)/(:num)', 'Matters::portalAccess/$1/$2', ['filter' => 'permission:lgc.edit']);
-    $routes->post('portal/bloquear/(:num)', 'Matters::blockAccount/$1', ['filter' => 'permission:lgc.edit']);
+    // Dar o quitar acceso al portal es decisión del abogado (lgc.share), no del personal de apoyo.
+    $routes->post('asuntos/portal/(:num)/(:num)', 'Matters::portalAccess/$1/$2', ['filter' => 'permission:lgc.share']);
+    $routes->post('portal/bloquear/(:num)', 'Matters::blockAccount/$1', ['filter' => 'permission:lgc.share']);
+    $routes->post('asuntos/parte/poder/(:num)/(:num)', 'Matters::authority/$1/$2', ['filter' => 'permission:lgc.edit']);
+    $routes->post('asuntos/bloqueo/(:num)', 'Matters::legalHold/$1', ['filter' => 'permission:lgc.configure']);
 
     // Procesos, actuaciones, plazos y tareas
     $routes->post('asuntos/proceso/(:num)', 'Work::saveProceeding/$1', ['filter' => 'permission:lgc.create']);
@@ -85,9 +88,14 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     $routes->post('asuntos/mensaje/(:num)', 'Inbox::start/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('mensajes/responder/(:num)', 'Inbox::reply/$1', ['filter' => 'permission:lgc.edit']);
     $routes->post('mensajes/estado/(:num)', 'Inbox::status/$1', ['filter' => 'permission:lgc.edit']);
+    // Aprobar o descartar lo que redactó alguien sin lgc.share (supervisión del personal no abogado).
+    $routes->post('mensajes/revisar/(:num)', 'Inbox::review/$1', ['filter' => 'permission:lgc.share']);
 
     // Configuración
     $routes->match(['GET', 'POST'], 'configuracion', 'Settings::index', ['filter' => 'permission:lgc.configure']);
+    $routes->post('configuracion/soporte', 'Settings::grantSupport', ['filter' => 'permission:lgc.configure']);
+    $routes->post('configuracion/soporte/revocar/(:num)', 'Settings::revokeSupport/$1', ['filter' => 'permission:lgc.configure']);
+    $routes->post('configuracion/reasignar', 'Settings::reassign', ['filter' => 'permission:lgc.configure']);
 });
 
 $routes->group('legalcase-portal', ['namespace' => 'Components\LegalCase\Controllers'], static function ($routes) {
@@ -101,4 +109,6 @@ $routes->group('legalcase-portal', ['namespace' => 'Components\LegalCase\Control
     $routes->post('solicitud/(:num)/entregar', 'ClientPortal::upload/$1');
     $routes->get('documento/(:num)', 'ClientPortal::download/$1');
     $routes->post('preferencias', 'ClientPortal::preferences');
+    $routes->post('privacidad', 'ClientPortal::privacy');
+    $routes->post('datos', 'ClientPortal::dataRights');
 });

@@ -20,6 +20,8 @@ $id = (int) $matter['id'];
                         <li class="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                             <div>
                                 <a class="font-semibold text-primary" href="<?= base_url('legalcase/mensajes/hilo/' . (int) $t['id']) ?>"><?= esc($t['subject']) ?></a>
+                                <?php if ($t['kind'] === 'data_rights'): ?><span class="badge badge-danger"><?= lang('Lgc.dataRights') ?></span><?php endif; ?>
+                                <span class="text-xs text-muted"><?= (int) $t['is_shared'] ? lang('Lgc.sharedThread') : esc($accounts[(int) ($t['account_id'] ?: $t['opened_by_account'])] ?? '') ?></span>
                                 <div class="text-xs text-muted">
                                     <?= esc(Meta::date($t['last_message_at'])) ?> · <?= esc($users[(int) $t['assigned_to']] ?? lang('Lgc.unassigned')) ?>
                                     <?php if ($late): ?><span class="font-semibold text-danger"> · <?= lang('Lgc.slaLate') ?></span><?php endif; ?>
@@ -32,12 +34,20 @@ $id = (int) $matter['id'];
             <?php endif; ?>
         </div>
     </div>
-    <?php if ($acc->can('lgc.edit') && $matter['status'] !== 'closed'): ?>
+    <?php if (($canWork && $acc->can('lgc.edit')) && $matter['status'] !== 'closed'): ?>
         <div class="card">
             <div class="card-header"><i class="icon icon-send"></i><h5 class="font-semibold"><?= lang('Lgc.threadNew') ?></h5></div>
             <div class="card-body">
                 <form method="post" action="<?= base_url('legalcase/asuntos/mensaje/' . $id) ?>" class="space-y-3">
                     <?= csrf_field() ?>
+                    <div class="form-group">
+                        <label class="form-label" for="th-to"><?= lang('Lgc.fRecipient') ?> <span class="text-danger">*</span></label>
+                        <select id="th-to" name="recipient" class="form-select" required>
+                            <?php foreach ($accounts as $aid => $mail): ?><option value="<?= (int) $aid ?>"><?= esc($mail) ?></option><?php endforeach; ?>
+                            <?php if (count($accounts) > 1): ?><option value="shared"><?= lang('Lgc.sharedThreadOption') ?></option><?php endif; ?>
+                        </select>
+                        <small class="form-hint"><?= lang($accounts ? 'Lgc.sharedThreadHint' : 'Lgc.noRecipients') ?></small>
+                    </div>
                     <div class="form-group">
                         <label class="form-label" for="th-subj"><?= lang('Lgc.fSubject') ?></label>
                         <input id="th-subj" type="text" name="subject" class="form-input" maxlength="190">

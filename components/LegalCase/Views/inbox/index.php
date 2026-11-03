@@ -55,6 +55,7 @@ $base = base_url('legalcase/mensajes');
             'columns'     => [
                 ['key' => 'subject', 'label' => lang('Lgc.fSubject'), 'sortable' => false,
                     'render' => static fn ($r) => '<a class="font-semibold text-primary" href="' . base_url('legalcase/mensajes/hilo/' . (int) $r['id']) . '">' . esc($r['subject']) . '</a>'
+                        . ($r['kind'] === 'data_rights' ? ' <span class="badge badge-danger">' . esc(lang('Lgc.dataRights')) . '</span>' : '')
                         . '<div class="text-xs text-muted"><span class="font-mono">' . esc($r['matter_number']) . '</span> · ' . esc($r['matter_title']) . '</div>'],
                 ['key' => 'assigned_to', 'label' => lang('Lgc.fAssignee'), 'sortable' => false,
                     'render' => static fn ($r) => esc($users[(int) $r['assigned_to']] ?? lang('Lgc.unassigned'))],

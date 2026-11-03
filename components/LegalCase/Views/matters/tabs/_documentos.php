@@ -10,7 +10,8 @@ use Components\LegalCase\Libraries\DocumentService;
 use Components\LegalCase\Libraries\Meta;
 use Components\LegalCase\Models\DocumentModel;
 
-$id   = (int) $matter['id'];
+$id       = (int) $matter['id'];
+$canShare = ($canWork && $acc->can('lgc.share'));
 $open = $matter['status'] !== 'closed';
 $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : max(1, (int) round($b / 1024)) . ' KB';
 ?>
@@ -29,14 +30,23 @@ $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : m
                             <?php foreach ($documents as $d): ?>
                                 <tr>
                                     <td>
-                                        <a class="font-semibold text-primary" href="<?= base_url('legalcase/documentos/descargar/' . (int) $d['id']) ?>"><i class="icon icon-file-earmark"></i> <?= esc($d['name']) ?></a>
+                                        <?php if ($d['classification'] === 'privileged' && !$insider): ?>
+                                            <span class="font-semibold text-muted"><i class="icon icon-lock"></i> <?= lang('Lgc.privilegedDoc') ?></span>
+                                        <?php else: ?>
+                                            <a class="font-semibold text-primary" href="<?= base_url('legalcase/documentos/descargar/' . (int) $d['id']) ?>"><i class="icon icon-file-earmark"></i> <?= esc($d['name']) ?></a>
+                                        <?php endif; ?>
                                         <div class="text-xs text-muted"><?= esc($size((int) $d['size'])) ?> · <span class="font-mono" title="SHA-256"><?= esc(substr((string) $d['sha256'], 0, 12)) ?>…</span></div>
                                     </td>
                                     <td>
-                                        <?php if ($acc->can('lgc.edit')): ?>
+                                        <?php if (($canWork && $acc->can('lgc.edit')) && ($d['classification'] !== 'privileged' || $insider)): ?>
+                                            <?php $priv = $d['classification'] === 'privileged'; ?>
                                             <form method="post" action="<?= base_url('legalcase/documentos/clasificar/' . (int) $d['id']) ?>"><?= csrf_field() ?>
-                                                <select name="classification" class="form-select" onchange="if (this.value !== 'shared' || confirm('<?= esc(lang('Lgc.confirmShare'), 'js') ?>')) { this.form.submit(); } else { this.value = '<?= esc($d['classification'], 'js') ?>'; }" aria-label="<?= esc(lang('Lgc.fClassification'), 'attr') ?>">
-                                                    <?php foreach (DocumentModel::CLASSIFICATIONS as $c): ?><option value="<?= $c ?>" <?= $d['classification'] === $c ? 'selected' : '' ?>><?= lang('Lgc.doc_class_' . $c) ?></option><?php endforeach; ?>
+                                                <input type="hidden" name="confirm_privileged" value="0">
+                                                <select name="classification" class="form-select" aria-label="<?= esc(lang('Lgc.fClassification'), 'attr') ?>"
+                                                    onchange="if (this.value !== 'shared' || confirm('<?= esc(lang($priv ? 'Lgc.confirmSharePrivileged' : 'Lgc.confirmShare'), 'js') ?>')) { this.form.confirm_privileged.value = '1'; this.form.submit(); } else { this.value = '<?= esc($d['classification'], 'js') ?>'; }">
+                                                    <?php foreach (DocumentModel::CLASSIFICATIONS as $c): ?>
+                                                        <option value="<?= $c ?>" <?= $d['classification'] === $c ? 'selected' : '' ?> <?= $c === 'shared' && !$canShare && $d['classification'] !== 'shared' ? 'disabled' : '' ?>><?= lang('Lgc.doc_class_' . $c) ?></option>
+                                                    <?php endforeach; ?>
                                                 </select>
                                             </form>
                                         <?php else: ?>
@@ -48,7 +58,7 @@ $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : m
                                         <?= $d['source'] === 'client' ? '<span class="badge badge-info">' . lang('Lgc.fromClient') . '</span>' : esc($users[(int) $d['uploaded_by']] ?? '—') ?>
                                     </td>
                                     <td class="text-right">
-                                        <?php if ($acc->can('lgc.delete')): ?>
+                                        <?php if (($canWork && $acc->can('lgc.delete'))): ?>
                                             <?= view('partials/delete_button', ['action' => base_url('legalcase/documentos/eliminar/' . (int) $d['id']), 'confirm' => lang('Lgc.confirmDelete'), 'label' => lang('Lgc.delete'), 'class' => 'btn btn-danger btn-sm', 'icon' => 'trash', 'text' => '']) ?>
                                         <?php endif; ?>
                                     </td>
@@ -71,12 +81,13 @@ $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : m
                         <?php foreach ($requests as $r): ?>
                             <li class="rounded-md border border-line p-3 text-sm">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <div class="font-semibold"><?= esc($r['title']) ?> <?= Meta::badge('req', $r['status']) ?></div>
+                                    <div class="font-semibold"><?= esc($r['title']) ?> <?= Meta::badge('req', $r['status']) ?>
+                                        <span class="text-xs font-normal text-muted"><?= $r['account_id'] ? esc($accounts[(int) $r['account_id']] ?? '#') : lang('Lgc.anyClient') ?></span></div>
                                     <div class="text-xs text-muted"><?= lang('Lgc.fDueAt') ?>: <?= esc(Meta::date($r['due_at'], false)) ?></div>
                                 </div>
                                 <?php if ($r['instructions']): ?><p class="mt-1 whitespace-pre-line text-muted"><?= esc($r['instructions']) ?></p><?php endif; ?>
                                 <?php if ($r['review_note']): ?><p class="mt-1 text-xs"><?= lang('Lgc.reviewNote') ?>: <?= esc($r['review_note']) ?></p><?php endif; ?>
-                                <?php if (in_array($r['status'], ['pending', 'submitted', 'rejected'], true) && $acc->can('lgc.edit')): ?>
+                                <?php if (in_array($r['status'], ['pending', 'submitted', 'rejected'], true) && ($canWork && $acc->can('lgc.edit'))): ?>
                                     <form method="post" action="<?= base_url('legalcase/solicitudes/revisar/' . (int) $r['id']) ?>" class="mt-2 flex flex-wrap items-end gap-2">
                                         <?= csrf_field() ?>
                                         <input type="text" name="note" class="form-input" maxlength="255" placeholder="<?= esc(lang('Lgc.phReviewNote'), 'attr') ?>" aria-label="<?= esc(lang('Lgc.reviewNote'), 'attr') ?>">
@@ -95,7 +106,7 @@ $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : m
         </div>
     </div>
 
-    <?php if ($acc->can('lgc.create')): ?>
+    <?php if (($canWork && $acc->can('lgc.create'))): ?>
         <div class="min-w-0 space-y-4">
             <div class="card">
                 <div class="card-header"><i class="icon icon-upload"></i><h5 class="font-semibold"><?= lang('Lgc.uploadDocument') ?></h5></div>
@@ -107,7 +118,7 @@ $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : m
                         <div class="form-group">
                             <label class="form-label" for="up-class"><?= lang('Lgc.fClassification') ?></label>
                             <select id="up-class" name="classification" class="form-select">
-                                <?php foreach (DocumentModel::CLASSIFICATIONS as $c): ?><option value="<?= $c ?>" <?= $c === 'internal' ? 'selected' : '' ?>><?= lang('Lgc.doc_class_' . $c) ?></option><?php endforeach; ?>
+                                <?php foreach (DocumentModel::CLASSIFICATIONS as $c): ?><option value="<?= $c ?>" <?= $c === 'internal' ? 'selected' : '' ?> <?= $c === 'shared' && !$canShare ? 'disabled' : '' ?>><?= lang('Lgc.doc_class_' . $c) ?></option><?php endforeach; ?>
                             </select>
                             <small class="form-hint"><?= lang('Lgc.classHint') ?></small>
                         </div>
@@ -129,6 +140,14 @@ $size = static fn (int $b) => $b >= 1048576 ? round($b / 1048576, 1) . ' MB' : m
                             <div class="form-group">
                                 <label class="form-label" for="rq-ins"><?= lang('Lgc.fInstructions') ?></label>
                                 <textarea id="rq-ins" name="instructions" rows="3" class="form-textarea" placeholder="<?= esc(lang('Lgc.phInstructions'), 'attr') ?>"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="rq-to"><?= lang('Lgc.fRecipient') ?></label>
+                                <select id="rq-to" name="account_id" class="form-select">
+                                    <option value=""><?= lang('Lgc.anyClient') ?></option>
+                                    <?php foreach ($accounts as $aid => $mail): ?><option value="<?= (int) $aid ?>"><?= esc($mail) ?></option><?php endforeach; ?>
+                                </select>
+                                <small class="form-hint"><?= lang('Lgc.recipientHint') ?></small>
                             </div>
                             <div class="form-group">
                                 <label class="form-label" for="rq-due"><?= lang('Lgc.fDueAt') ?></label>
