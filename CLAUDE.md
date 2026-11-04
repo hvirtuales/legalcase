@@ -104,6 +104,11 @@ plataforma**. No se inventa un lenguaje visual propio por pantalla. El orden de 
     tablas inexistentes.
   - Para desplegar su esquema, ejecuta `spark components:install <Carpeta>` por cada uno. Es re-ejecutable y
     sirve precisamente para reparar una BD recreada.
+- **Logs gigantes (corregido 2026-11-04):** `match(['get', 'post'], …)` en minúscula está obsoleto en CI 4.6 y cada
+  petición escribía decenas de `[DEPRECATED]` con su traza: `writable/logs` llegó a 2 GB y llenó el disco. Las rutas de
+  LeadFlow, Mailer, Mapas y Copropiedad usan ya `GET`/`POST`. **Escribe siempre los verbos en mayúscula.**
+- **Apache no sirve la app** (verificado 2026-11-04): `http://localhost/pms/` y cualquier ruta debajo responden
+  404 con el cuerpo vacío. Se trabaja con `spark serve`. Sin diagnosticar; el `.env` todavía apunta a `/cuentas/`.
 - `writable/installed.flag` existe, así que el asistente `/install` está bloqueado. Bórralo para volver a correrlo.
 - **LeadFlow sí está instalado y migrado en `pms_db`.** Para probarlo se creó la empresa **«Firma Demo LeadFlow»**
   (id 5): dueño `admin`, plan Profesional, suscripción activa de un año y datos de ejemplo.
@@ -271,7 +276,7 @@ partial `partials/delete_button`; nunca un `<a href>`.
 | Copropiedad | `cop` | `/copropiedad` | empresa | `copropiedad:autotest`, `copropiedad:contrato`. **Desinstalado aquí.** |
 | Directorio | `dir` | `/directorio`, `/directorio-publico` | **tenant** | Piloto de ámbito tenant: tablas con `tenant_id` y filtros `['auth','tenant']`. |
 | LeadFlow | `lfl` | `/leadflow`, `/leadflow-publico` | empresa | Captación, conversión y **gestión de expedientes** de firmas jurídicas. Docketwise es opcional. `leadflow:autotest`, `leadflow:contrato`, `leadflow:tick`, `leadflow:expedientes`. Ver su sección. |
-| LegalCase | `lgc` | `/legalcase`, `/legalcase-portal` | empresa | Asuntos jurídicos, procesos, plazos, documentos y **LegalCase Connect** (portal del cliente con actualizaciones aprobadas). Independiente (`depends: []`). `lgc:autotest`, `lgc:contrato`, `lgc:tick`. Ver su sección. |
+| LegalCase | `lgc` | `/legalcase`, `/legalcase-portal` | empresa | Asuntos jurídicos, procesos, plazos, documentos y **LegalCase Connect** (portal del cliente con actualizaciones aprobadas). Independiente (`depends: []`). `lgc:autotest`, `lgc:contrato`, `lgc:tick`, `lgc:demo`. Ver su sección. |
 
 **Patrones que se repiten entre componentes** (léelos en uno antes de replicarlos en otro):
 
@@ -368,6 +373,60 @@ precalificación, scoring, actividades, agenda, timeline y conversión Lead → 
     que desactivar LeadFlow devuelve la raíz al login sin tocar nada.
   - De la raíz cuelgan `buscar`, `area/{slug}`, `sitemap.xml` y `portada`. Las direcciones viejas
     (`/abogados*`) siguen vivas como **301**: hay enlaces repartidos y perfiles indexados.
+- **La página de inicio (`Views/public/directory/home.php`) lleva marca LegalCase y el lenguaje visual de
+  leadslawyers.com/landing** (versión abogados), y le habla primero al **abogado**: hero con «Postular mi despacho»,
+  tres cifras y tarjeta visual; pilares; ocho capacidades; banda navy del portal con tarjetas de vidrio; verificación
+  en 4 pasos; directorio ciudadano (`#directorio`, el buscador sigue mandando por GET a `/buscar`) y panel final.
+  - **El estilo vive en `_layout.php` y lo heredan TODAS las páginas públicas:** fondo crema con resplandor dorado,
+    barra superior translúcida y fija, `h1`/`h2` en **Cormorant Garamond** y texto en **Manrope**, botones de
+    píldora (`.ll-btn` navy, `.ll-btn-gold` acento, `.ll-btn-ghost` secundario), tarjetas de 22 px con filete dorado
+    (`.ll-feature`), banda `.ll-dark` + `.ll-glass`. Modo oscuro propio (la referencia no lo tiene).
+  - **Las tipografías viajan con el componente:** `Assets/fonts/*.woff2` (subconjunto latino, variables, con su
+    licencia OFL al lado), servidas por `Controllers/Asset::file` en `/lfl-recursos/{archivo}` con **lista blanca
+    fija** y caché de un año. Ni Google Fonts (cero CDN) ni la `fonts.css` del núcleo (el auditor §9 la prohíbe).
+    Añadir una fuente = el archivo + una entrada en `Asset::FILES` + su `@font-face`.
+  - **Fotografías:** 8 de las 10 de `proyectos/imagen` (04 y 07 quedan sin usar), copiadas a `Assets/img/` con
+    nombre semántico (`hero`, `presencia`, `captacion`, `gestion`, `portal`, `verificacion`, `directorio`, `cierre`)
+    en `-1200.webp` y `-640.webp`, servidas por `Asset::file` (lista blanca en `Asset::PHOTOS`) con `srcset`. Todas
+    `alt=""` (decorativas: el texto de al lado ya lo dice) y diferidas salvo la del hero (`fetchpriority="high"`).
+    - **Contraste medido, no supuesto:** con el texto de las bandas transparente se captura el fondo y se calcula
+      el contraste WCAG contra el píxel más claro (p98) bajo cada texto. Peor caso 5,4:1 (escritorio) y 7,6:1
+      (390 px). Los velos son **direccionales** (`.ll-photo-left|top|bottom`): densos bajo el texto y ligeros donde
+      no hay, para que la foto se vea; las tarjetas de vidrio sobre foto llevan fondo navy propio (.6).
+    - **`height:auto` en las fotos de tarjeta:** el `height="900"` del HTML manda sobre `aspect-ratio` si no se
+      anula.
+  - **La portada que sube la plataforma es panorámica** y **tiene prioridad** como fondo de la banda del directorio
+    (que es ancha); sin ella va `directorio-*.webp`. La tarjeta del hero es vertical y lleva siempre su foto.
+  - `.ll-search` es una fila **flexible**: la portada trae tres campos y el buscador cuatro; con columnas fijas el
+    botón se salía.
+  - **Versión en inglés con URL propia: `?lang=en`** (`Libraries/Directory/PublicLocale`, llamado en el
+    `initController()` de `Directory` y `Signup`). El `/language/{es|en}` del núcleo guarda el idioma SOLO en la
+    sesión, y para un buscador la versión inglesa no existiría. Aquí cada página tiene las dos URL, el layout publica
+    `canonical` del idioma servido + `hreflang` es/en/x-default + `og:locale`, y el selector ES/EN enlaza a la
+    misma página en el otro idioma conservando la consulta. El idioma elegido va a la misma clave de sesión que usa
+    el núcleo (`language`), así que la navegación sigue en él sin arrastrar el parámetro. El español es la URL sin
+    parámetro (la canónica de siempre).
+  - **Logo:** `Assets/img/logo.png` (de `proyectos/imagen/logo.png`, con el blanco opaco de los platillos pasado a
+    transparente) y `logo-dark.png` (el navy pasado a crema, para que la «L» no desaparezca en oscuro), elegidos con
+    `<picture>` + `prefers-color-scheme`. Sin baldosa ni sombra. La cabecera pública ya **no** usa el logo de
+    Configuración del sistema (`PlatformModel::brandLogo()`): era un JPG sobre blanco.
+  - **Vocabulario: «caso» / «case»**, no «asunto» / «matter», en toda la portada (la marca es LegalCase). El
+    módulo interno de LegalCase sigue diciendo «Asuntos». El CTA inglés es «Apply to join», no el calco «Apply
+    with my practice».
+  - **Menú hamburguesa ≤ 860 px** (`.ll-burger`), en línea como todo §7.3. La clase `ll-js` la pone un script en el
+    `<head>` antes del primer pintado: sin JavaScript no hay botón y el menú queda desplegado. Se cierra al elegir
+    un enlace, con Escape (devuelve el foco al botón) y al pasar a escritorio. `aria-expanded` y la etiqueta
+    «Abrir/Cerrar menú» cambian con el estado.
+  - Sin `background-attachment: fixed` en el `body`: los navegadores móviles lo ignoran o lo pintan mal y, en
+    oscuro, el fondo bajo el hero salía gris.
+  - **Solo promete lo que el sistema hace:** la insignia la concede la plataforma después de publicar (no es una
+    admisión previa), y la firma es «electrónica simple con evidencia», no digital certificada.
+  - Las secciones de LegalCase y el enlace «Acceso de clientes» salen solo si
+    `class_exists('Components\LegalCase\Controllers\ClientPortal')`: sin LegalCase activo, la portada sigue en pie.
+  - Registro: `usted` en la portada y la cabecera; el resto de páginas públicas (registro, buscador, fichas)
+    todavía tutea.
+  - Ojo al nombrar claves `dir*`: `dirPlatformTitle` y `dirVerifyTitle` **ya existen** (pantallas internas), y en un
+    array de PHP la clave repetida que va después gana sin avisar.
 - **Portada de la página de inicio:** es **global**, no de una firma. Vive en `cmp_lfl_platform`
   (clave/valor del componente, no `app_settings`), el archivo en `writable/uploads/lfl/platform/` y lo
   sirve `Directory::cover` en `/portada` con caché larga y un `?v=` con la fecha del archivo. Se sube
@@ -587,6 +646,50 @@ convive con los expedientes de LeadFlow sin tocarlos.
     sensible y restringido; actúa el `guardian` con documento acreditado (`ParticipantModel::AUTHORITY_ROLES`).
   - **Derechos del titular (`DataSubjectService`):** exportación JSON y supresión (anonimiza) solo si no hay
     asunto vigente, dentro de la retención o con bloqueo legal.
+- **Agenda en calendario (`legalcase/agenda/calendario`, `Dashboard::calendar`, `lgc.view`):** la misma agenda que la
+  lista (plazos, audiencias y tareas de los asuntos visibles, con «Solo míos»), por `?escala=dia|semana|mes` y
+  `?fecha=Y-m-d`. Pestañas Lista / Calendario en el parcial `_agenda_tabs`.
+  - Consulta solo el rango visible (el mes se completa a semanas lunes–domingo) y trae también lo **cumplido**,
+    atenuado: el calendario es además el historial del día. Lo cancelado no sale.
+  - Cada día lleva `Calendar::reason()`: se sombrean los no hábiles y se rotula el festivo, la vacancia o el día
+    del despacho (el fin de semana no se rotula, ya lo dice el sombreado).
+  - El mes avanza desde el día 1: `31-ene + 1 month` en PHP cae en marzo.
+  - **Colores sin `primary`:** el primario lo fija el tema en runtime y en esta instalación es casi negro, que en
+    oscuro desaparece. Audiencias y «hoy» van en `ink`/`surface`; plazos en `warning`/`danger`; tareas en `info`.
+    (La pestaña activa del núcleo y `_matter_link` sí usan `text-primary` y por eso se leen mal en oscuro con este
+    tema: es del tema, no de la vista.)
+  - Claves dinámicas con `_` final (`agcWd_N`, `agcWdLong_N`, `agcMonth_N`): es la convención que reconoce
+    `lgc:contrato` para no tomarlas por claves sueltas sin definir.
+  - Usa `icon-calendar`, **añadido a `public/css/icons.css`** (Lucide). Si el componente se lleva a otra
+    instalación sin él, la pestaña queda sin icono y nada más.
+- **Ayuda (`legalcase/ayuda`, `Controllers/Help`, `lgc.view`, menú «Ayuda» orden 95):** guía de uso en 12 pasos,
+  ordenada como se trabaja un caso, con **capturas de referencia** de las pantallas reales, vocabulario, tabla de
+  permisos (marca los que tiene quien lee) y preguntas frecuentes.
+  - **`Libraries/HelpGuide` es la única definición:** de ahí beben la vista, la lista blanca de imágenes y la
+    comprobación. Añadir un paso = una entrada + su captura + sus claves `Lgc.hlp_<key>`, `…Body`, `…P1…Pn`,
+    `…Cap` (y `…Where` si no tiene pantalla propia).
+  - El botón «Abrir» solo sale si el paso tiene pantalla propia **y** quien lee tiene el permiso.
+  - **Capturas en `Assets/help/<imagen>-<es|en>.webp`** (23, ~1,1 MB), servidas por `Help::image` con lista blanca,
+    detrás de la sesión (`private`, 1 día). Se tomaron sobre los datos demo **con los nombres y correos reales de
+    los usuarios sustituidos por ficticios** (Valeria Montoya, Santiago Herrera, `@despacho.example`): viajan con
+    el componente. Al regenerarlas, repetir esa sustitución y verificar que no quede ninguno. El portal solo existe
+    en español (`langs => ['es']`) y cae a él en inglés.
+- **Datos demo: `spark lgc:demo --company <id> --lead <user> --second <user>`** (`Libraries/DemoData`).
+  - Solo en un despacho **sin asuntos** (lo comprueba el servicio) y dentro de una transacción: si algo falla no
+    queda nada, ni los PDF en disco. Hacen falta **dos personas** del despacho, porque aprobar y la doble validación
+    exigen otra persona; `--lead` necesita `lgc.approve` y `lgc.share`.
+  - Todo entra por los **servicios**, así que numeración, conflicto, capacidad legal, bitácora y alertas actúan
+    igual que en el uso normal. Solo los documentos se insertan a mano (`DocumentService::store()` pide un
+    `UploadedFile`), con PDF reales generados por `DemoData::pdf()`.
+  - **No sale ningún correo:** los contactos usan `@demo-legalcase.invalid` y el `Outbox` lleva un remitente que no
+    envía. Los avisos quedan `sent` contra ese remitente simulado.
+  - Deja **pendientes a propósito** para resolver desde la interfaz: un término crítico con una sola validación, una
+    actualización en `pending_review`, un mensaje sin responder, un documento por entregar, un contrato por firmar y
+    el aviso de privacidad sin aceptar en dos cuentas.
+  - `--links` emite invitaciones nuevas (72 h, un solo uso) **solo** para cuentas del dominio demo. `--base` pone el
+    host delante: en CLI `base_url()` no conoce el real. Las opciones van como `--clave valor` (la forma de CI4);
+    el comando acepta también `--clave=valor`.
+  - En `pms` está cargado en la empresa 5 («Firma Demo LeadFlow»): `--lead 17` (jazu) y `--second 1` (admin).
 - **Verificado en PostgreSQL 16** (instalación, `lgc:autotest` 144/144, `lgc:contrato` 42/42, navegador real
   claro/oscuro/390 px). El desborde horizontal a 390 px que se ve en las pantallas internas es de la barra
   superior del núcleo (también ocurre en `/dashboard`).

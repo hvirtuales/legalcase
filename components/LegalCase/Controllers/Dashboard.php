@@ -117,6 +117,104 @@ class Dashboard extends BaseLgc
         ]);
     }
 
+    /**
+     * Agenda en calendario: `GET legalcase/agenda/calendario?escala=mes|semana|dia&fecha=Y-m-d`.
+     *
+     * Es la MISMA agenda que la lista —plazos, audiencias y tareas de los asuntos visibles,
+     * con «Solo míos»—, pintada por fechas. Dos diferencias a propósito:
+     *
+     *  · Consulta solo el rango visible (el mes se completa a semanas de lunes a domingo).
+     *  · Trae también lo ya cumplido (plazos `done`, audiencias `held`, tareas `done`), que
+     *    la vista atenúa: un calendario es también el historial de lo que pasó ese día. Lo
+     *    cancelado no sale.
+     *
+     * Cada día lleva el motivo por el que no es hábil (`Calendar::reason()`: fin de semana,
+     * festivo de Colombia, vacancia judicial o día propio del despacho), que es lo que un
+     * abogado necesita ver al lado de un vencimiento.
+     */
+    public function calendar()
+    {
+        $scale = (string) $this->request->getGet('escala');
+        $scale = in_array($scale, ['dia', 'semana', 'mes'], true) ? $scale : 'mes';
+        $raw   = (string) $this->request->getGet('fecha');
+        $date  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) && strtotime($raw) ? date('Y-m-d', strtotime($raw)) : date('Y-m-d');
+        $mine  = (string) $this->request->getGet('mios') === '1';
+        $uid   = $this->acc()->userId;
+
+        $t = strtotime($date . ' 12:00:00');
+        if ($scale === 'dia') {
+            $from = $to = $date;
+        } elseif ($scale === 'semana') {
+            $from = date('Y-m-d', strtotime('-' . ((int) date('N', $t) - 1) . ' days', $t));
+            $to   = date('Y-m-d', strtotime($from . ' +6 days'));
+        } else {
+            $first = date('Y-m-01', $t);
+            $last  = date('Y-m-t', $t);
+            $from  = date('Y-m-d', strtotime($first . ' -' . ((int) date('N', strtotime($first)) - 1) . ' days'));
+            $to    = date('Y-m-d', strtotime($last . ' +' . (7 - (int) date('N', strtotime($last))) . ' days'));
+        }
+        [$fromDt, $toDt] = [$from . ' 00:00:00', $to . ' 23:59:59'];
+
+        $ids = $this->visibleIds();
+        $d   = (new DeadlineModel())->whereIn('matter_id', $ids)->where('status !=', 'cancelled')
+            ->where('due_at >=', $fromDt)->where('due_at <=', $toDt);
+        $tk  = (new TaskModel())->whereIn('matter_id', $ids)->where('status !=', 'cancelled')
+            ->where('due_at >=', $fromDt)->where('due_at <=', $toDt);
+        if ($mine) {
+            $d->where('assigned_to', $uid);
+            $tk->where('assigned_to', $uid);
+        }
+        $deadlines = $d->orderBy('due_at', 'ASC')->findAll(1000);
+        $tasks     = $tk->orderBy('due_at', 'ASC')->findAll(1000);
+        $hearings  = (new HearingModel())->whereIn('matter_id', $ids)->where('status !=', 'cancelled')
+            ->where('scheduled_at >=', $fromDt)->where('scheduled_at <=', $toDt)->orderBy('scheduled_at', 'ASC')->findAll(1000);
+
+        // [Y-m-d => eventos ordenados por hora]. Los tres tipos comparten la misma forma.
+        $events = [];
+        $push   = static function (string $type, array $r, string $at, bool $done, bool $alert) use (&$events) {
+            $events[substr($at, 0, 10)][] = ['type' => $type, 'at' => $at, 'row' => $r, 'done' => $done, 'alert' => $alert];
+        };
+        foreach ($deadlines as $r) {
+            $push('deadline', $r, (string) $r['due_at'], $r['status'] === 'done', (int) $r['is_critical'] === 1 || $r['status'] === 'to_validate');
+        }
+        foreach ($hearings as $r) {
+            $push('hearing', $r, (string) $r['scheduled_at'], $r['status'] === 'held', $r['status'] === 'postponed');
+        }
+        foreach ($tasks as $r) {
+            $push('task', $r, (string) $r['due_at'], $r['status'] === 'done', false);
+        }
+        foreach ($events as &$list) {
+            usort($list, static fn ($a, $b) => strcmp($a['at'], $b['at']));
+        }
+        unset($list);
+
+        $cal  = new \Components\LegalCase\Libraries\Calendar($this->companyId());
+        $days = [];
+        for ($x = strtotime($from . ' 12:00:00'); $x <= strtotime($to . ' 12:00:00'); $x += 86400) {
+            $ymd        = date('Y-m-d', $x);
+            $days[$ymd] = $cal->reason($ymd);
+        }
+
+        $step = ['dia' => '1 day', 'semana' => '7 days', 'mes' => '1 month'][$scale];
+        // El mes se mueve desde el día 1: «31 de enero + 1 mes» en PHP cae en marzo.
+        $anchor = $scale === 'mes' ? date('Y-m-01', $t) : $date;
+
+        return view('Components\LegalCase\Views\calendar', [
+            'title'   => lang('Lgc.navAgenda'),
+            'scale'   => $scale,
+            'date'    => $date,
+            'from'    => $from,
+            'to'      => $to,
+            'prev'    => date('Y-m-d', strtotime($anchor . ' -' . $step)),
+            'next'    => date('Y-m-d', strtotime($anchor . ' +' . $step)),
+            'days'    => $days,
+            'events'  => $events,
+            'mine'    => $mine,
+            'numbers' => $this->numbers(array_merge($deadlines, $tasks, $hearings)),
+            'users'   => Team::users($this->companyId()),
+        ]);
+    }
+
     public function communications()
     {
         $ids = $this->visibleIds();

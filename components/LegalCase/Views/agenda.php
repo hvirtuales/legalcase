@@ -13,10 +13,8 @@ use Components\LegalCase\Libraries\Meta;
 $link    = fn (int $mid) => view('Components\LegalCase\Views\_matter_link', ['numbers' => $numbers, 'mid' => $mid]);
 $canEdit = Access::current()->can('lgc.edit');
 ?>
-<div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-    <div class="alert alert-info mb-0"><i class="icon icon-info-circle"></i><span><?= lang('Lgc.deadlineDisclaimer') ?></span></div>
-    <a href="<?= base_url('legalcase/agenda' . ($mine ? '' : '?mios=1')) ?>" class="btn <?= $mine ? 'btn-primary' : 'btn-ghost' ?> btn-sm"><i class="icon icon-person"></i> <?= lang('Lgc.onlyMine') ?></a>
-</div>
+<?= view('Components\LegalCase\Views\_agenda_tabs', ['view' => 'list', 'mine' => $mine, 'keep' => []]) ?>
+<div class="alert alert-info mb-4"><i class="icon icon-info-circle"></i><span><?= lang('Lgc.deadlineDisclaimer') ?></span></div>
 <?php if ($hearings): ?>
     <div class="card mb-4">
         <div class="card-header"><i class="icon icon-landmark"></i><h5 class="font-semibold"><?= lang('Lgc.hearings') ?></h5></div>

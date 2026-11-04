@@ -60,6 +60,8 @@ return [
         ['label' => 'Comunicaciones', 'label_key' => 'Lgc.navComms', 'icon' => 'icon-send', 'route' => 'legalcase/comunicaciones', 'permission' => 'lgc.view', 'order' => 50],
         ['label' => 'Mensajes', 'label_key' => 'Lgc.navInbox', 'icon' => 'icon-chat', 'route' => 'legalcase/mensajes', 'permission' => 'lgc.view', 'order' => 60],
         ['label' => 'Configuración', 'label_key' => 'Lgc.navSettings', 'icon' => 'icon-gear', 'route' => 'legalcase/configuracion', 'permission' => 'lgc.configure', 'order' => 90],
+        // La guía de uso, con capturas de referencia: la ven todos los que usan el componente.
+        ['label' => 'Ayuda', 'label_key' => 'Lgc.navHelp', 'icon' => 'icon-life-preserver', 'route' => 'legalcase/ayuda', 'permission' => 'lgc.view', 'order' => 95],
     ],
 
     'routes'        => ['legalcase', 'legalcase-portal'],

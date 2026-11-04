@@ -28,6 +28,13 @@ use Components\LeadFlow\Models\ProfileModel;
  */
 class Directory extends BaseController
 {
+    /** `?lang=es|en`: cada página pública tiene su URL en los dos idiomas (ver `PublicLocale`). */
+    public function initController(\CodeIgniter\HTTP\RequestInterface $request, \CodeIgniter\HTTP\ResponseInterface $response, \Psr\Log\LoggerInterface $logger)
+    {
+        parent::initController($request, $response, $logger);
+        \Components\LeadFlow\Libraries\Directory\PublicLocale::apply();
+    }
+
     private function dir(): PublicDirectory
     {
         Taxonomy::ensure();

@@ -26,9 +26,9 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
 
     // ── Leads ────────────────────────────────────────────────────────────────
     $routes->get('leads', 'Leads::index', ['filter' => 'permission:lfl.view']);
-    $routes->match(['get', 'post'], 'leads/nuevo', 'Leads::create', ['filter' => 'permission:lfl.create']);
+    $routes->match(['GET', 'POST'], 'leads/nuevo', 'Leads::create', ['filter' => 'permission:lfl.create']);
     $routes->get('leads/ficha/(:num)', 'Leads::show/$1', ['filter' => 'permission:lfl.view']);
-    $routes->match(['get', 'post'], 'leads/editar/(:num)', 'Leads::edit/$1', ['filter' => 'permission:lfl.edit']);
+    $routes->match(['GET', 'POST'], 'leads/editar/(:num)', 'Leads::edit/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('leads/etapa/(:num)', 'Leads::stage/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('leads/asignar/(:num)', 'Leads::assign/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('leads/prioridad/(:num)', 'Leads::priority/$1', ['filter' => 'permission:lfl.edit']);
@@ -43,7 +43,7 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
     $routes->get('leads/plantilla', 'Import::template', ['filter' => 'permission:lfl.import']);
 
     // Precalificación: llenar un formulario desde la ficha (llamada, entrevista)
-    $routes->match(['get', 'post'], 'leads/precalificar/(:num)/(:num)', 'Forms::fill/$1/$2', ['filter' => 'permission:lfl.edit']);
+    $routes->match(['GET', 'POST'], 'leads/precalificar/(:num)/(:num)', 'Forms::fill/$1/$2', ['filter' => 'permission:lfl.edit']);
 
     // Notas y comunicaciones
     $routes->post('leads/nota/(:num)', 'Engagement::note/$1', ['filter' => 'permission:lfl.create']);
@@ -71,8 +71,8 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
      */
     $routes->get('expedientes', 'Matters::index', ['filter' => 'permission:lfl.view']);
     $routes->get('expedientes/ficha/(:num)', 'Matters::show/$1', ['filter' => 'permission:lfl.view']);
-    $routes->match(['get', 'post'], 'expedientes/abrir/(:num)', 'Matters::open/$1', ['filter' => 'permission:lfl.convert']);
-    $routes->match(['get', 'post'], 'expedientes/editar/(:num)', 'Matters::edit/$1', ['filter' => 'permission:lfl.edit']);
+    $routes->match(['GET', 'POST'], 'expedientes/abrir/(:num)', 'Matters::open/$1', ['filter' => 'permission:lfl.convert']);
+    $routes->match(['GET', 'POST'], 'expedientes/editar/(:num)', 'Matters::edit/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('expedientes/etapa/(:num)', 'Matters::stage/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('expedientes/cerrar/(:num)', 'Matters::close/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('expedientes/reabrir/(:num)', 'Matters::reopen/$1', ['filter' => 'permission:lfl.edit']);
@@ -123,18 +123,18 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
 
     // ── Formularios dinámicos ────────────────────────────────────────────────
     $routes->get('formularios', 'Forms::index', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'formularios/nuevo', 'Forms::create', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'formularios/editar/(:num)', 'Forms::edit/$1', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'formularios/nuevo', 'Forms::create', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'formularios/editar/(:num)', 'Forms::edit/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('formularios/eliminar/(:num)', 'Forms::delete/$1', ['filter' => 'permission:lfl.delete']);
 
     // ── Marketing: fuentes y campañas ────────────────────────────────────────
     $routes->get('marketing/fuentes', 'Sources::index', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'marketing/fuentes/nuevo', 'Sources::create', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'marketing/fuentes/editar/(:num)', 'Sources::edit/$1', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'marketing/fuentes/nuevo', 'Sources::create', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'marketing/fuentes/editar/(:num)', 'Sources::edit/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('marketing/fuentes/eliminar/(:num)', 'Sources::delete/$1', ['filter' => 'permission:lfl.delete']);
     $routes->get('marketing/campanas', 'Campaigns::index', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'marketing/campanas/nuevo', 'Campaigns::create', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'marketing/campanas/editar/(:num)', 'Campaigns::edit/$1', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'marketing/campanas/nuevo', 'Campaigns::create', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'marketing/campanas/editar/(:num)', 'Campaigns::edit/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('marketing/campanas/eliminar/(:num)', 'Campaigns::delete/$1', ['filter' => 'permission:lfl.delete']);
 
     // ── Automatizaciones (§19) ───────────────────────────────────────────────
@@ -142,8 +142,8 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
     // sistema es de consulta (`view`), que es lo que mira un supervisor.
     $routes->get('automatizaciones', 'Automations::index', ['filter' => 'permission:lfl.configure']);
     $routes->get('automatizaciones/ejecuciones', 'Automations::runs', ['filter' => 'permission:lfl.view']);
-    $routes->match(['get', 'post'], 'automatizaciones/nueva', 'Automations::create', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'automatizaciones/editar/(:num)', 'Automations::edit/$1', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'automatizaciones/nueva', 'Automations::create', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'automatizaciones/editar/(:num)', 'Automations::edit/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('automatizaciones/demo', 'Automations::demo', ['filter' => 'permission:lfl.configure']);
     $routes->post('automatizaciones/estado/(:num)', 'Automations::toggle/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('automatizaciones/eliminar/(:num)', 'Automations::delete/$1', ['filter' => 'permission:lfl.delete']);
@@ -153,9 +153,9 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
     // cambios de estado (`edit`), y la baja es `delete`.
     // GET lista, POST guarda las funciones comerciales: esta pantalla absorbió
     // «Configuración → Equipo», porque las dos mitades se indexan por (empresa, usuario).
-    $routes->match(['get', 'post'], 'directorio', 'Profiles::index', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'directorio/nuevo', 'Profiles::create', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'directorio/editar/(:num)', 'Profiles::edit/$1', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'directorio', 'Profiles::index', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'directorio/nuevo', 'Profiles::create', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'directorio/editar/(:num)', 'Profiles::edit/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('directorio/publicar/(:num)', 'Profiles::publish/$1', ['filter' => 'permission:lfl.edit']);
     $routes->post('directorio/eliminar/(:num)', 'Profiles::delete/$1', ['filter' => 'permission:lfl.delete']);
     // La verificación es de la PLATAFORMA: el permiso es el mismo, pero el controlador
@@ -211,21 +211,21 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
     // ── Configuración ────────────────────────────────────────────────────────
     // El manual es de lectura: `lfl.view`, para el asesor que entra por primera vez.
     $routes->get('configuracion/ayuda', 'Settings::help', ['filter' => 'permission:lfl.view']);
-    $routes->match(['get', 'post'], 'configuracion', 'Settings::general', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'configuracion/equipo', 'Settings::team', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'configuracion/etapas', 'Settings::stages', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion', 'Settings::general', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/equipo', 'Settings::team', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/etapas', 'Settings::stages', ['filter' => 'permission:lfl.configure']);
     $routes->post('configuracion/etapas/nueva', 'Settings::addStage', ['filter' => 'permission:lfl.configure']);
     $routes->post('configuracion/etapas/eliminar/(:num)', 'Settings::deleteStage/$1', ['filter' => 'permission:lfl.delete']);
-    $routes->match(['get', 'post'], 'configuracion/scoring', 'Settings::scoring', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'configuracion/documentos', 'Settings::docTypes', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/scoring', 'Settings::scoring', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/documentos', 'Settings::docTypes', ['filter' => 'permission:lfl.configure']);
     // Conexión con USCIS, por firma: cada una registra su app y gasta su cupo.
-    $routes->match(['get', 'post'], 'configuracion/uscis', 'Settings::uscis', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/uscis', 'Settings::uscis', ['filter' => 'permission:lfl.configure']);
     $routes->post('configuracion/uscis/probar', 'Settings::uscisCheck', ['filter' => 'permission:lfl.configure']);
     $routes->post('configuracion/uscis/desconectar', 'Settings::uscisDisconnect', ['filter' => 'permission:lfl.configure']);
     $routes->post('configuracion/documentos/eliminar/(:num)', 'Settings::deleteDocType/$1', ['filter' => 'permission:lfl.delete']);
     $routes->get('configuracion/servicios', 'Services::index', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'configuracion/servicios/nuevo', 'Services::create', ['filter' => 'permission:lfl.configure']);
-    $routes->match(['get', 'post'], 'configuracion/servicios/editar/(:num)', 'Services::edit/$1', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/servicios/nuevo', 'Services::create', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'configuracion/servicios/editar/(:num)', 'Services::edit/$1', ['filter' => 'permission:lfl.configure']);
     $routes->post('configuracion/servicios/eliminar/(:num)', 'Services::delete/$1', ['filter' => 'permission:lfl.delete']);
 
     /*
@@ -246,7 +246,7 @@ $routes->group('leadflow', ['namespace' => 'Components\LeadFlow\Controllers', 'f
     $routes->post('docketwise/plataforma/validar', 'Docketwise::checkPlatform', ['filter' => 'permission:lfl.configure']);
     $routes->post('docketwise/desconectar', 'Docketwise::disconnect', ['filter' => 'permission:lfl.configure']);
     $routes->post('docketwise/contactos', 'Docketwise::syncContacts', ['filter' => 'permission:lfl.convert']);
-    $routes->match(['get', 'post'], 'docketwise/plataforma', 'Docketwise::platform', ['filter' => 'permission:lfl.configure']);
+    $routes->match(['GET', 'POST'], 'docketwise/plataforma', 'Docketwise::platform', ['filter' => 'permission:lfl.configure']);
 
     // Conversión Lead → Contact + Matter (idempotente)
     $routes->get('convertir/(:num)', 'Conversions::prepare/$1', ['filter' => 'permission:lfl.convert']);
@@ -290,6 +290,8 @@ $routes->get('sitemap.xml', 'Directory::sitemap', ['namespace' => 'Components\Le
 // La imagen de la portada. Va suelta y no bajo un prefijo porque la sirve la
 // página de inicio, que ahora ES la raíz.
 $routes->get('portada', 'Directory::cover', ['namespace' => 'Components\LeadFlow\Controllers']);
+// Tipografías del sitio público, servidas desde la carpeta del componente (lista blanca fija).
+$routes->get('lfl-recursos/(:segment)', 'Asset::file/$1', ['namespace' => 'Components\LeadFlow\Controllers']);
 
 /*
  * ─── CANAL DE DENUNCIA ───────────────────────────────────────────────────────
@@ -302,7 +304,7 @@ $routes->get('portada', 'Directory::cover', ['namespace' => 'Components\LeadFlow
  */
 $routes->group('reportar', ['namespace' => 'Components\LeadFlow\Controllers'], static function ($routes) {
     $routes->get('listo', 'Directory::reportDone');
-    $routes->match(['get', 'post'], '(:segment)', 'Directory::report/$1');
+    $routes->match(['GET', 'POST'], '(:segment)', 'Directory::report/$1');
     $routes->get('(:segment)/captcha', 'Directory::reportCaptcha/$1');
 });
 
@@ -325,7 +327,7 @@ $routes->get('abogados/area/(:segment)', static fn ($slug) => redirect()->to(bas
  * CSRF y las defensas de siempre, y **sin indexar**: lleva token y datos de una persona.
  */
 $routes->group('opinion', ['namespace' => 'Components\LeadFlow\Controllers'], static function ($routes) {
-    $routes->match(['get', 'post'], '(:segment)', 'Directory::review/$1');
+    $routes->match(['GET', 'POST'], '(:segment)', 'Directory::review/$1');
     $routes->get('(:segment)/gracias', 'Directory::reviewDone/$1');
     $routes->get('(:segment)/captcha', 'Directory::reviewCaptcha/$1');
 });
@@ -338,7 +340,7 @@ $routes->group('opinion', ['namespace' => 'Components\LeadFlow\Controllers'], st
  * y freno por IP, como el resto de los formularios públicos del componente.
  */
 $routes->group('orientacion', ['namespace' => 'Components\LeadFlow\Controllers'], static function ($routes) {
-    $routes->match(['get', 'post'], '/', 'Directory::orientation');
+    $routes->match(['GET', 'POST'], '/', 'Directory::orientation');
     $routes->get('listo', 'Directory::orientationDone');
     $routes->get('captcha', 'Directory::orientationCaptcha');
 });
@@ -375,7 +377,7 @@ $routes->group('firma', ['namespace' => 'Components\LeadFlow\Controllers'], stat
     $routes->get('(:segment)/captcha', 'Directory::firmCaptcha/$1');
     // Consulta de estado de casos: solo existe si la firma está conectada a USCIS
     // en modo real. El controlador lo comprueba y devuelve 404 si no.
-    $routes->match(['get', 'post'], '(:segment)/caso', 'Directory::caseStatus/$1');
+    $routes->match(['GET', 'POST'], '(:segment)/caso', 'Directory::caseStatus/$1');
     $routes->get('(:segment)/caso/captcha', 'Directory::caseCaptcha/$1');
 });
 
@@ -386,7 +388,7 @@ $routes->group('abogado', ['namespace' => 'Components\LeadFlow\Controllers'], st
     // y no como extensión del slug: así el segmento del perfil sigue siendo el slug.
     $routes->get('(:segment)/tarjeta', 'Directory::card/$1');
     $routes->get('(:segment)/tarjeta.vcf', 'Directory::vcf/$1');
-    $routes->match(['get', 'post'], '(:segment)/consulta', 'Directory::inquiry/$1');
+    $routes->match(['GET', 'POST'], '(:segment)/consulta', 'Directory::inquiry/$1');
     $routes->get('(:segment)/consulta/listo', 'Directory::done/$1');
     $routes->get('(:segment)/captcha', 'Directory::captcha/$1');
 });

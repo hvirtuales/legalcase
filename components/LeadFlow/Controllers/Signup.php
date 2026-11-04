@@ -26,6 +26,13 @@ use Components\LeadFlow\Libraries\Directory\Taxonomy;
  */
 class Signup extends BaseController
 {
+    /** `?lang=es|en`, como el resto del sitio público (ver `PublicLocale`). */
+    public function initController(\CodeIgniter\HTTP\RequestInterface $request, \CodeIgniter\HTTP\ResponseInterface $response, \Psr\Log\LoggerInterface $logger)
+    {
+        parent::initController($request, $response, $logger);
+        \Components\LeadFlow\Libraries\Directory\PublicLocale::apply();
+    }
+
     public function form()
     {
         Taxonomy::ensure();

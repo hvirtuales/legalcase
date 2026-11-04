@@ -20,6 +20,9 @@ $routes->group('legalcase', ['namespace' => 'Components\LegalCase\Controllers', 
     // Mi día y vistas transversales
     $routes->get('/', 'Dashboard::index', ['filter' => 'permission:lgc.view']);
     $routes->get('agenda', 'Dashboard::agenda', ['filter' => 'permission:lgc.view']);
+    $routes->get('agenda/calendario', 'Dashboard::calendar', ['filter' => 'permission:lgc.view']);
+    $routes->get('ayuda', 'Help::index', ['filter' => 'permission:lgc.view']);
+    $routes->get('ayuda/imagen/(:segment)', 'Help::image/$1', ['filter' => 'permission:lgc.view']);
     $routes->get('comunicaciones', 'Dashboard::communications', ['filter' => 'permission:lgc.view']);
 
     // Contactos

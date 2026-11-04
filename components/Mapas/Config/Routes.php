@@ -17,8 +17,8 @@
 $routes->group('mapas', ['namespace' => 'Components\Mapas\Controllers', 'filter' => 'auth'], static function ($routes) {
     // --- Mapas
     $routes->get('/', 'Maps::index', ['filter' => 'permission:map.view']);
-    $routes->match(['get', 'post'], 'crear', 'Maps::create', ['filter' => 'permission:map.create']);
-    $routes->match(['get', 'post'], 'editar/(:num)', 'Maps::edit/$1', ['filter' => 'permission:map.edit']);
+    $routes->match(['GET', 'POST'], 'crear', 'Maps::create', ['filter' => 'permission:map.create']);
+    $routes->match(['GET', 'POST'], 'editar/(:num)', 'Maps::edit/$1', ['filter' => 'permission:map.edit']);
     $routes->post('eliminar/(:num)', 'Maps::delete/$1', ['filter' => 'permission:map.delete']);
     // Duplicar es crear: por eso lleva "map.create" y no "map.edit", y por eso
     // pasa por el mismo cupo del plan que el alta.
@@ -50,8 +50,8 @@ $routes->group('mapas', ['namespace' => 'Components\Mapas\Controllers', 'filter'
 
     // --- Categorías: nombre y color del pin
     $routes->get('categorias', 'Categories::index', ['filter' => 'permission:map.configure']);
-    $routes->match(['get', 'post'], 'categorias/crear', 'Categories::create', ['filter' => 'permission:map.configure']);
-    $routes->match(['get', 'post'], 'categorias/editar/(:num)', 'Categories::edit/$1', ['filter' => 'permission:map.configure']);
+    $routes->match(['GET', 'POST'], 'categorias/crear', 'Categories::create', ['filter' => 'permission:map.configure']);
+    $routes->match(['GET', 'POST'], 'categorias/editar/(:num)', 'Categories::edit/$1', ['filter' => 'permission:map.configure']);
     $routes->post('categorias/eliminar/(:num)', 'Categories::delete/$1', ['filter' => 'permission:map.configure']);
 });
 
